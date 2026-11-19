@@ -56,9 +56,10 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 const blank = () => ({
   v: 1, profile: null, goal: null, init: null,
   weights: {}, logs: {}, incomplete: {}, custom: [], recents: [], checkins: [],
-  settings: { unit: 'kg', theme: 'auto' },
+  settings: { unit: 'kg', theme: 'auto', lang: defaultLang() },
   train: blankTrain(),
 });
+function defaultLang() { try { return /^sl\b/i.test(navigator.language || '') ? 'sl' : 'en'; } catch (e) { return 'en'; } }
 function blankTrain() {
   return { templates: [], sessions: [], active: null, custom: [], days: [], shift: 0, rest: 120 };
 }
@@ -68,7 +69,7 @@ let rev = 0;
 const ui = { view: 'today', date: todayKey(), range: 90, ob: { step: 0 } };
 
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) { const o = Object.assign(blank(), s); o.train = Object.assign(blankTrain(), s.train || {}); return o; } } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) { const o = Object.assign(blank(), s); o.train = Object.assign(blankTrain(), s.train || {}); if (!o.settings.lang) o.settings.lang = defaultLang(); return o; } } catch (e) {}
   return blank();
 }
 function save() { rev++; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Storage is full — export a backup'); } }
@@ -78,7 +79,11 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
 const r0 = n => Math.round(n), r1 = n => Math.round(n * 10) / 10;
-const fmt = n => Math.round(n).toLocaleString('en-US');
+const isSl = () => S && S.settings && S.settings.lang === 'sl';
+const fmt = n => { const t = Math.round(n).toLocaleString('en-US'); return isSl() ? t.replace(/,/g, '\u202f') : t; };
+const loc = () => isSl() ? 'sl-SI' : 'en-GB';
+const tt = s => window.KalI18n ? KalI18n.t(s) : s;  // translate text for dialogs (confirm / prompt)
+const dayInitial = i => (isSl() ? 'NPTSČPS' : 'SMTWTFS')[i];
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function todayKey() { return dkey(new Date()); }
@@ -91,7 +96,7 @@ function niceDate(k, long) {
   if (k === t) return 'Today';
   if (k === addDays(t, -1)) return 'Yesterday';
   if (k === addDays(t, 1)) return 'Tomorrow';
-  return pkey(k).toLocaleDateString('en-GB', long ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short' });
+  return pkey(k).toLocaleDateString(loc(), long ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short' });
 }
 const unit = () => S.settings.unit;
 const wDisp = kg => unit() === 'lb' ? kg * LB : kg;
@@ -123,6 +128,7 @@ let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
 
 function applyTheme() {
+  if (window.KalI18n) KalI18n.set(S.settings.lang);
   const t = S.settings.theme;
   if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
   try { t === 'auto' ? localStorage.removeItem('kal-theme') : localStorage.setItem('kal-theme', t); } catch (e) {}
@@ -421,7 +427,7 @@ function niceStep(raw) {
 }
 function xLabelsFor(days, i0, i1) {
   const span = i1 - i0, out = [], n = 4;
-  for (let j = 0; j <= n; j++) { const i = Math.round(i0 + span * j / n); if (days[i]) out.push([i, pkey(days[i].k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })]); }
+  for (let j = 0; j <= n; j++) { const i = Math.round(i0 + span * j / n); if (days[i]) out.push([i, pkey(days[i].k).toLocaleDateString(loc(), { day: 'numeric', month: 'short' })]); }
   return out;
 }
 
@@ -477,6 +483,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 // ---------- onboarding ----------
 const OB_STEPS = 7;
 function renderOnboarding() {
+  applyTheme();
   const o = ui.ob, st = o.step;
   const d = o.d || (o.d = { unit: 'kg', sex: 'female', birthYear: '', height: '', ft: '', inch: '', weight: '', bodyFat: '', activity: 'light', type: 'lose', ratePct: 0.5, target: '', diet: 'balanced', protein: 'high', exp: 'intermediate', monthPct: 0.75, pLb: 0.85, fatPct: 0.25 });
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="ob-set" data-k="${k}" data-v="${v}" aria-pressed="${d[k] === v}">${l}</button>`).join('')}</div>`;
@@ -488,7 +495,8 @@ function renderOnboarding() {
     body = `<div class="wordmark" style="margin-top:12vh">Kalibra</div>
       <h1 style="margin-top:18px">Targets that learn from your real metabolism.</h1>
       <p class="lead">Log what you eat and weigh in most mornings. Each week Kalibra measures how much energy you actually burn and adjusts your calories and macros to keep you on pace.</p>
-      <p class="note">Setup takes about a minute. Your data stays on this device.</p>`;
+      <p class="note">Setup takes about a minute. Your data stays on this device.</p>
+      <div class="seg" style="margin-top:24px;max-width:280px">${[['en', 'English'], ['sl', 'Slovenščina']].map(([v, l]) => `<button type="button" data-act="ob-lang" data-v="${v}" aria-pressed="${S.settings.lang === v}">${l}</button>`).join('')}</div>`;
     next = 'Get started';
   } else if (st === 1) {
     body = `<h1>About you</h1><p class="lead">Used for your starting estimate. Your own data takes over after 2–3 weeks.</p>
@@ -606,7 +614,7 @@ function ensureShell() {
 }
 function header(v) {
   const me = `<button class="icon-btn" data-act="view" data-v="profile" aria-label="Profile and settings">${icon('user')}</button>`;
-  if (v === 'today') return `<div class="top-in"><h1 class="num">${esc(niceDate(ui.date, true))}</h1><div class="datenav"><button data-act="day" data-n="-1" aria-label="Previous day">${icon('left')}</button><span>${pkey(ui.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><button data-act="day" data-n="1" aria-label="Next day">${icon('right')}</button></div>${me}</div>`;
+  if (v === 'today') return `<div class="top-in"><h1 class="num">${esc(niceDate(ui.date, true))}</h1><div class="datenav"><button data-act="day" data-n="-1" aria-label="Previous day">${icon('left')}</button><span>${pkey(ui.date).toLocaleDateString(loc(), { day: 'numeric', month: 'short' })}</span><button data-act="day" data-n="1" aria-label="Next day">${icon('right')}</button></div>${me}</div>`;
   return `<div class="top-in"><h1>${TITLES[v]}</h1>${v === 'profile' ? '' : me}</div>`;
 }
 function render() {
@@ -724,7 +732,7 @@ function viewToday() {
   <section class="card">
     <div class="card-h"><h2>Food log</h2><span class="mute num" style="font-size:13px">Fiber ${r0(tot.fib)} g</span></div>
     ${items.length ? items.map(e => `<button class="entry" data-act="edit-entry" data-id="${e.id}">
-        <span class="t">${new Date(e.t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span class="t">${new Date(e.t).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })}</span>
         <span class="n"><b>${esc(e.name)}</b><span>${esc(e.amountLabel || '')}</span>
           <span class="pm"><em style="color:var(--pro)">P ${r0(e.p)}</em><em style="color:var(--carb)">C ${r0(e.c)}</em><em style="color:var(--fat)">F ${r0(e.f)}</em></span></span>
         <span class="k num">${fmt(e.kcal)}</span></button>`).join('')
@@ -806,7 +814,7 @@ function viewPlan() {
   <section class="card"><div class="card-h"><h2>Training-day calories</h2></div>
     <p class="note" style="margin-top:0">Eat more on the days you train and a little less on rest days. Your weekly total stays the same, so your rate of progress doesn't change. The extra calories go to carbs to fuel your sessions.</p>
     <div class="seg" style="margin-top:12px">${[[0, 'Off'], [0.1, '+10%'], [0.15, '+15%'], [0.2, '+20%']].map(([v, l]) => `<button data-act="shift" data-v="${v}" aria-pressed="${sh === v}">${l}</button>`).join('')}</div>
-    <div class="field"><span>Training days</span><div class="days">${order.map(i => `<button data-act="tday" data-v="${i}" aria-pressed="${T.days.includes(i)}" aria-label="${DAYS[i]}">${DAYS[i][0]}</button>`).join('')}</div></div>
+    <div class="field"><span>Training days</span><div class="days">${order.map(i => `<button data-act="tday" data-v="${i}" aria-pressed="${T.days.includes(i)}" aria-label="${DAYS[i]}">${dayInitial(i)}</button>`).join('')}</div></div>
     ${sh && n && n < 7 ? `<div class="split"><div><span>Training day</span><b class="num">${fmt(cur.kcal + tDelta)}</b></div><div><span>Rest day</span><b class="num">${fmt(cur.kcal - rDelta)}</b></div><div><span>Weekly total</span><b class="num">${fmt(cur.kcal * 7)}</b></div></div>`
       : sh ? '<p class="note">Pick the days you usually train to turn this on.</p>' : ''}
   </section>
@@ -884,6 +892,7 @@ function viewProfile() {
     <div class="kv"><span>Tracking since</span><b>${esc(niceDate(model().start, true))}</b></div></section>
   <section class="card"><h2>Preferences</h2>
     <label class="field"><span>Weight unit</span>${seg('set-unit', unit(), [['kg', 'Kilograms'], ['lb', 'Pounds']])}</label>
+    <label class="field"><span>Language</span>${seg('set-lang', S.settings.lang, [['en', 'English'], ['sl', 'Slovenščina']])}</label>
     <label class="field"><span>Appearance</span>${seg('set-theme', S.settings.theme, [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</label>
     <label class="field"><span>Check-in day</span><select class="input" data-change="checkin-day">${DAYS.map((d, i) => `<option value="${i}" ${S.goal.checkinDay === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></section>
   <section class="card"><h2>Your data</h2>
@@ -1275,6 +1284,7 @@ const actions = {
   goal: () => openGoal(),
   'edit-profile': () => openEditProfile(),
   'set-unit': el => { S.settings.unit = el.dataset.v; save(); render(); },
+  'set-lang': el => { S.settings.lang = el.dataset.v; save(); applyTheme(); const m = $('#main'); if (m) m.dataset.sig = ''; render(); },
   'set-theme': el => { S.settings.theme = el.dataset.v; save(); render(); },
   export: () => {
     const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
@@ -1289,7 +1299,7 @@ const actions = {
     };
     i.click();
   },
-  reset: () => { if (confirm('Delete all food logs, weigh-ins and settings from this device? This cannot be undone.')) { S = blank(); save(); ui.ob = { step: 0 }; render(); } },
+  reset: () => { if (confirm(tt('Delete all food logs, weigh-ins and settings from this device? This cannot be undone.'))) { S = blank(); save(); ui.ob = { step: 0 }; render(); } },
   'ob-set': el => {
     const d = ui.ob.d, k = el.dataset.k; readObInputs(); let v = el.dataset.v;
     if (['ratePct', 'monthPct', 'pLb', 'fatPct'].includes(k)) v = +v;
@@ -1298,6 +1308,7 @@ const actions = {
     if (k === 'exp') d.monthPct = BULK[v][3];
     renderOnboarding();
   },
+  'ob-lang': el => { S.settings.lang = el.dataset.v; save(); applyTheme(); renderOnboarding(); },
   'ob-back': () => { readObInputs(); ui.ob.step--; renderOnboarding(); },
   'ob-next': () => {
     readObInputs();
@@ -1323,7 +1334,7 @@ window.Kalibra = { model, computeTargets, macrosFor, get state() { return S; }, 
 
 // Shared toolkit for feature modules (workouts.js). Modules add views, actions and hooks before first render.
 Object.assign(K, {
-  get S() { return S; }, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
+  tt, loc, get S() { return S; }, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
   todayKey, dkey, pkey, addDays, diffDays, niceDate, unit, wDisp, wIn, wFmt, chart, niceStep, latest, model, targetsOn, dayTotals, cnt, barW, animateIn,
   reduceMotion, PROTEIN, openFood,
 });

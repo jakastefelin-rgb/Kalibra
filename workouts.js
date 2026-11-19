@@ -259,7 +259,7 @@ function onWorkoutClick(e) {
   if (act === 'add-ex') return pickExercise(id => { a.exercises.push(newEntry(id)); K.save(); drawWorkout(); setTimeout(() => { const sb = wEl.querySelector('.sheet-b'); sb.scrollTo({ top: sb.scrollHeight, behavior: 'smooth' }); }, 60); });
   if (act === 'finish') return finishWorkout();
   if (act === 'discard') {
-    if (!confirm('Discard this workout? Logged sets will be lost.')) return;
+    if (!confirm(K.tt('Discard this workout? Logged sets will be lost.'))) return;
     T().active = null; stopRest(); K.save(); K.closeAll(); K.render(); K.toast('Workout discarded');
   }
 }
@@ -329,7 +329,7 @@ function restDone() {
 function finishWorkout() {
   const a = T().active;
   const kept = a.exercises.map(x => Object.assign({}, x, { sets: x.sets.filter(s => s.done) })).filter(x => x.sets.length);
-  if (!kept.length) { if (confirm('No sets are checked off. Discard this workout?')) { T().active = null; stopRest(); K.save(); K.closeAll(); K.render(); } return; }
+  if (!kept.length) { if (confirm(K.tt('No sets are checked off. Discard this workout?'))) { T().active = null; stopRest(); K.save(); K.closeAll(); K.render(); } return; }
   const sess = Object.assign({}, a, { end: Date.now(), exercises: kept });
   delete sess.restEnd; delete sess.restLen;
   sess.kcal = sessionKcal(sess);
@@ -364,7 +364,7 @@ function finishWorkout() {
   el.querySelector('#flog').onclick = () => { K.closeSheet(); K.ui.date = k; K.openFood(); };
   const toTpl = () => sess.exercises.map(x => ({ exId: x.exId, sets: x.sets.filter(s => !s.warm).length || 1, repMin: x.repMin, repMax: x.repMax, rest: x.rest }));
   const fs = el.querySelector('#fsave');
-  if (fs) fs.onclick = () => { const name = prompt('Template name', sess.name === 'Workout' ? 'My workout' : sess.name); if (!name) return; const t = { id: 't' + uid(), name, program: null, exercises: toTpl() }; T().templates.push(t); sess.templateId = t.id; K.save(); fs.remove(); K.toast('Template saved'); };
+  if (fs) fs.onclick = () => { const name = prompt(K.tt('Template name'), K.tt(sess.name === 'Workout' ? 'My workout' : sess.name)); if (!name) return; const t = { id: 't' + uid(), name, program: null, exercises: toTpl() }; T().templates.push(t); sess.templateId = t.id; K.save(); fs.remove(); K.toast('Template saved'); };
   const fu = el.querySelector('#fupd');
   if (fu) fu.onclick = () => { tpl.exercises = toTpl(); K.save(); fu.remove(); K.toast('Template updated'); };
 }
@@ -460,7 +460,7 @@ function editTemplate(tpl) {
       if (i >= 0) arr[i] = d; else arr.push(d);
       K.save(); K.closeSheet(); K.render(); K.toast('Template saved');
     }
-    if (e.target.closest('#tdel') && confirm('Delete this template? Past workouts are kept.')) { T().templates = T().templates.filter(t => t.id !== d.id); K.save(); K.closeSheet(); K.render(); }
+    if (e.target.closest('#tdel') && confirm(K.tt('Delete this template? Past workouts are kept.'))) { T().templates = T().templates.filter(t => t.id !== d.id); K.save(); K.closeSheet(); K.render(); }
   });
   draw();
 }
@@ -484,7 +484,7 @@ function openSession(id) {
   const el = K.openSheet(s.name, `<p class="mute" style="margin:0">${esc(K.niceDate(s.date, true))} · ${mins(s.end - s.start)} min · ${fmt(toDisp(volume(s)))} ${uLabel()} · ≈${s.kcal || 0} kcal</p>
     ${s.exercises.map(x => { const e = ex(x.exId); return `<div class="card" style="padding:14px"><b>${esc(e.name)}</b>${x.sets.map((st, i) => `<div class="kv"><span>${st.warm ? 'Warm-up' : 'Set ' + (i + 1)}${st.pr ? ' <span class="pr-tag">PR</span>' : ''}</span><b>${e.kind === 'c' ? st.min + ' min' : e.kind === 't' ? st.sec + ' s' : (st.w ? wTxt(st.w) + ' ' + uLabel() + ' × ' : '') + st.reps + (st.rir != null ? ' @' + st.rir + ' RIR' : '')}</b></div>`).join('')}</div>`; }).join('')}
     <div class="row-btns"><button class="btn block danger" id="sdel">Delete workout</button></div>`);
-  el.querySelector('#sdel').onclick = () => { if (!confirm('Delete this workout from your history?')) return; T().sessions = T().sessions.filter(x => x.id !== id); K.save(); K.closeSheet(); K.render(); };
+  el.querySelector('#sdel').onclick = () => { if (!confirm(K.tt('Delete this workout from your history?'))) return; T().sessions = T().sessions.filter(x => x.id !== id); K.save(); K.closeSheet(); K.render(); };
 }
 function openExercise(id) {
   const e = ex(id);
@@ -595,7 +595,7 @@ function viewTrain() {
   const muscles = Object.keys(MUS).filter(m => m !== 'cardio');
   const g = K.S.goal, band = g && g.type === 'bulk' && g.exp !== 'beginner' ? [8, 15] : [10, 20];
   const recent = sessionsDesc().slice(0, 8);
-  return `${a ? `<button class="hero resume" data-act="wo-resume"><div class="pulse"></div><div><span class="big-l">Workout in progress</span><b class="resume-n">${esc(a.name)}</b><span class="big-l">${doneSets(a)} sets done · started ${new Date(a.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>${icon('play')}</button>`
+  return `${a ? `<button class="hero resume" data-act="wo-resume"><div class="pulse"></div><div><span class="big-l">Workout in progress</span><b class="resume-n">${esc(a.name)}</b><span class="big-l">${doneSets(a)} sets done · started ${new Date(a.start).toLocaleTimeString(K.loc(), { hour: '2-digit', minute: '2-digit' })}</span></div>${icon('play')}</button>`
     : nx ? `<section class="hero next"><span class="big-l">Up next</span><div class="resume-n">${esc(nx.name)}</div>
         <p class="next-l">${nx.exercises.slice(0, 4).map(x => esc(ex(x.exId).name)).join(' · ')}${nx.exercises.length > 4 ? ` +${nx.exercises.length - 4}` : ''}</p>
         <button class="btn light" data-act="tpl-start" data-id="${nx.id}">${icon('play')}Start workout</button></section>`

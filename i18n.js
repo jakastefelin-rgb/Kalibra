@@ -1,0 +1,441 @@
+/* Kalibra — Slovenian translation.
+ * The app is written in English; when Slovenian is on, every piece of text the app draws is translated as it
+ * appears (exact phrases first, then patterns for text with numbers or names in it). Numbers get a decimal comma.
+ */
+(() => {
+'use strict';
+// Slovenian plural: 1 serija, 2 seriji, 3–4 serije, 5+ serij
+const pl = (n, one, two, few, many) => { const x = Math.abs(Math.round(+String(n).replace(/[^\d.-]/g, '') || 0)) % 100; return x === 1 ? one : x === 2 ? two : x === 3 || x === 4 ? few : many; };
+
+const S = {
+  // ---- navigation & common
+  'Today': 'Danes', 'Yesterday': 'Včeraj', 'Tomorrow': 'Jutri', 'Train': 'Trening', 'Progress': 'Napredek', 'Plan': 'Načrt', 'You': 'Profil',
+  'Main': 'Glavni meni', 'Add': 'Dodaj', 'Close': 'Zapri', 'Previous day': 'Prejšnji dan', 'Next day': 'Naslednji dan', 'Profile and settings': 'Profil in nastavitve',
+  'Save': 'Shrani', 'Save changes': 'Shrani spremembe', 'Edit': 'Uredi', 'Done': 'Končano', 'Back': 'Nazaj', 'Continue': 'Naprej', 'Remove': 'Odstrani', 'Clear': 'Počisti',
+  'Log food': 'Vnesi hrano', 'Log weight': 'Vnesi težo', 'Start workout': 'Začni trening', 'Resume workout': 'Nadaljuj trening',
+  'kcal': 'kcal', 'g': 'g', 'min': 'min', 'max': 'maks.', 'sets': 'serije', 'set': 'serija', 'Sets': 'Serije', 'Volume': 'Volumen', 't': 't',
+  'Calories': 'Kalorije', 'Protein': 'Beljakovine', 'Carbs': 'Hidrati', 'Fat': 'Maščobe', 'protein': 'beljakovine', 'carbs': 'hidrati', 'fat': 'maščobe',
+  'Monday': 'ponedeljek', 'Tuesday': 'torek', 'Wednesday': 'sreda', 'Thursday': 'četrtek', 'Friday': 'petek', 'Saturday': 'sobota', 'Sunday': 'nedelja',
+
+  // ---- today
+  'Your weekly check-in is ready': 'Tedenski pregled je pripravljen', 'Review last week and update your targets': 'Preglej pretekli teden in posodobi cilje',
+  "Log this morning's weight": 'Vnesi jutranjo težo', 'Daily weigh-ins make your expenditure estimate sharper': 'Vsakodnevno tehtanje izboljša oceno porabe',
+  'kcal left today': 'kcal še na voljo danes', 'kcal over target': 'kcal nad ciljem', 'Eaten': 'Pojedeno', 'Target': 'Cilj',
+  'Scale': 'Tehtnica', 'Trend': 'Trend', 'Expenditure': 'Poraba', 'log': 'vnesi', 'Food log': 'Dnevnik hrane', 'Add food': 'Dodaj hrano', 'Copy previous day': 'Kopiraj prejšnji dan',
+  'Forgot to log something?': 'Si kaj pozabil vnesti?', 'Mark day as incomplete': 'Označi dan kot nepopoln', 'so it doesn’t skew your expenditure.': ', da ne popači ocene porabe.',
+  'This day is marked as': 'Ta dan je označen kot', 'incomplete': 'nepopoln', ', so it is left out of your expenditure estimate.': ', zato ni upoštevan pri oceni porabe.', 'Mark as complete': 'Označi kot popoln',
+  'Tap + to search, scan a barcode or quick-add calories.': 'Tapni +, da poiščeš hrano, skeniraš črtno kodo ali hitro vneseš kalorije.',
+  'Nothing logged yet today': 'Danes še ni vnosov', 'Nothing logged on this day': 'Ta dan ni vnosov',
+  'Workout in progress': 'Trening poteka', 'Training day': 'Trening dan', 'Ready to train?': 'Pripravljen na trening?', 'Start a workout': 'Začni trening',
+
+  // ---- food
+  'Search foods': 'Išči živila', 'Scan': 'Skeniraj', 'Quick add': 'Hiter vnos', 'Create food': 'Ustvari živilo', 'All': 'Vse', 'Recent': 'Nedavno', 'My foods': 'Moja živila', 'Online': 'Splet',
+  'Recent and common foods': 'Nedavna in pogosta živila', 'Branded and packaged foods': 'Blagovna in pakirana živila', 'No matches': 'Ni zadetkov',
+  'Try the Online tab for branded products.': 'Za blagovne izdelke poskusi zavihek Splet.', 'Foods you create appear here.': 'Tu se prikažejo živila, ki jih ustvariš.',
+  'Searching…': 'Iščem …', 'Online search is unavailable': 'Spletno iskanje ni na voljo', 'Check your connection. The built-in database still works offline.': 'Preveri povezavo. Vgrajena baza deluje tudi brez povezave.',
+  'Search branded products': 'Išči blagovne izdelke', 'Type a product name to search Open Food Facts.': 'Vpiši ime izdelka za iskanje v Open Food Facts.',
+  'No products found': 'Ni najdenih izdelkov', 'Try a shorter name, or create the food yourself.': 'Poskusi s krajšim imenom ali živilo ustvari sam.',
+  'Typical values': 'Tipične vrednosti', 'USDA': 'USDA', 'Amount': 'Količina', 'Unit': 'Enota', 'Time': 'Čas', 'Add to log': 'Dodaj v dnevnik',
+  'Edit entry': 'Uredi vnos', 'Delete entry': 'Izbriši vnos', 'Edit quick add': 'Uredi hiter vnos', 'Name (optional)': 'Ime (neobvezno)', 'e.g. Restaurant lunch': 'npr. kosilo v restavraciji',
+  'Leave blank to calculate from macros': 'Pusti prazno za izračun iz makrohranil', 'Protein g': 'Beljakovine g', 'Carbs g': 'OH g', 'Fat g': 'Maščobe g', 'Fiber g': 'Vlaknine g',
+  'Name': 'Ime', 'e.g. Protein bar, chocolate': 'npr. proteinska ploščica, čokolada', 'Brand (optional)': 'Znamka (neobvezno)', 'Serving name': 'Ime porcije',
+  'Serving size (g or ml)': 'Velikost porcije (g ali ml)', 'e.g. 60': 'npr. 60', 'Nutrition values are per': 'Hranilne vrednosti so na', 'Serving': 'Porcijo',
+  'Barcode (optional)': 'Črtna koda (neobvezno)', 'Save and log': 'Shrani in vnesi', 'Scan barcode': 'Skeniraj črtno kodo', 'Starting camera…': 'Zaganjam kamero …',
+  'Point the camera at the barcode.': 'Usmeri kamero v črtno kodo.', 'Or type the barcode': 'Ali vpiši črtno kodo', 'e.g. 3017620422003': 'npr. 3017620422003', 'Look up': 'Poišči',
+  'Camera unavailable — allow camera access or type the barcode below.': 'Kamera ni na voljo — dovoli dostop do kamere ali spodaj vpiši črtno kodo.',
+  'Calories': 'Kalorije', 'Quick add ': 'Hiter vnos',
+
+  // ---- weight
+  'Weigh-in': 'Tehtanje', 'Date': 'Datum', 'Save weight': 'Shrani težo', 'Delete weigh-in': 'Izbriši tehtanje',
+  'Weigh first thing in the morning, after using the bathroom. Day-to-day jumps are normal — the trend line smooths them out.': 'Tehtaj se zjutraj takoj po odhodu na stranišče. Dnevna nihanja so normalna — trendna črta jih zgladi.',
+
+  // ---- progress
+  'Weight trend': 'Trend teže', 'Scale weight': 'Izmerjena teža', 'Trend weight': 'Trendna teža', 'In range': 'V obdobju', 'Last 7 days': 'Zadnjih 7 dni',
+  'Strength': 'Moč', 'Weekly volume, tonnes': 'Tedenski volumen, tone', 'Estimated 1-rep max in this range': 'Ocenjeni 1RM v tem obdobju',
+  "Losing weight while these numbers hold or climb means you're keeping muscle.": 'Če med hujšanjem te številke ostajajo ali rastejo, ohranjaš mišice.',
+  'Starting estimate': 'Začetna ocena', 'Calibrating': 'Umerjanje', 'Data-driven': 'Iz tvojih podatkov', 'kcal/day': 'kcal/dan',
+  'Calories eaten': 'Zaužite kalorije', 'Logged': 'Vneseno', 'Incomplete': 'Nepopolno', 'Weigh-ins': 'Tehtanja', 'No weigh-ins yet.': 'Še ni tehtanj.',
+  '1M': '1 M', '3M': '3 M', '6M': '6 M', '1Y': '1 L', 'All ': 'Vse',
+
+  // ---- plan
+  'Daily targets': 'Dnevni cilji', 'kcal per day': 'kcal na dan', 'Training-day calories': 'Kalorije na dan treninga',
+  "Eat more on the days you train and a little less on rest days. Your weekly total stays the same, so your rate of progress doesn't change. The extra calories go to carbs to fuel your sessions.": 'Na dneve treninga jej več, na dneve počitka malo manj. Tedenski seštevek ostane enak, zato se hitrost napredka ne spremeni. Dodatne kalorije gredo v ogljikove hidrate za energijo na treningu.',
+  'Off': 'Izklop', 'Training days': 'Dnevi treninga', 'Rest day': 'Dan počitka', 'Weekly total': 'Tedensko skupaj', 'Pick the days you usually train to turn this on.': 'Izberi dneve, ko običajno treniraš, da to vklopiš.',
+  'Program': 'Program', 'Coached': 'Vodeno', 'Manual': 'Ročno', 'Goal': 'Cilj', 'Target pace': 'Ciljni tempo', 'Diet · protein': 'Prehrana · beljakovine', 'Macros': 'Makrohranila',
+  'Next check-in': 'Naslednji pregled', 'Run check-in now': 'Opravi pregled zdaj', 'Check-in history': 'Zgodovina pregledov', '(start)': '(začetek)', 'Goal weight': 'Ciljna teža',
+  'How targets are set': 'Kako se določijo cilji', 'For the best accuracy: log everything (or mark the day incomplete), and weigh in most mornings under the same conditions.': 'Za največjo natančnost: vnesi vse (ali dan označi kot nepopoln) in se tehtaj večino juter pod enakimi pogoji.',
+  'Weekly check-in': 'Tedenski pregled', 'Change last 7 days': 'Sprememba v zadnjih 7 dneh', 'Goal pace': 'Ciljni tempo', 'Average intake': 'Povprečni vnos', 'Apply new targets': 'Uporabi nove cilje',
+  'Your target hit the minimum safe intake. A slower rate would be easier to sustain.': 'Cilj je dosegel najnižji varen vnos. Počasnejši tempo bi bilo lažje vzdrževati.',
+  'Fewer than 5 complete days were logged this week, so the expenditure estimate leaned on earlier data.': 'Ta teden je bilo vnesenih manj kot 5 popolnih dni, zato ocena porabe temelji bolj na starejših podatkih.',
+  'Edit plan': 'Uredi načrt', 'Lose': 'Hujšanje', 'Maintain': 'Vzdrževanje', 'Gain': 'Pridobivanje', 'Lean bulk': 'Čisti bulk', 'Lose fat': 'Hujšanje',
+  'Rate (% of body weight per week)': 'Tempo (% telesne teže na teden)', 'Diet style': 'Način prehrane', 'Balanced': 'Uravnoteženo', 'Low fat': 'Malo maščob', 'Low carb': 'Malo OH', 'Keto': 'Keto',
+  'Moderate': 'Zmerno', 'High': 'Visoko', 'Very high': 'Zelo visoko', 'Save and update targets': 'Shrani in posodobi cilje', 'Training experience': 'Izkušnje s treningom',
+  'Beginner': 'Začetnik', 'Intermediate': 'Srednje izkušen', 'Advanced': 'Napreden', 'Target gain per month': 'Ciljni prirast na mesec', 'Surplus over maintenance': 'Presežek nad vzdrževanjem',
+  'Protein per lb of body weight': 'Beljakovine na lb (0,45 kg) telesne teže', 'Fat share of calories': 'Delež kalorij iz maščob',
+  'Saving starts a fresh bulk: maintenance + surplus. Weekly check-ins then adjust from your trend weight.': 'Shranjevanje začne nov bulk: vzdrževanje + presežek. Tedenski pregledi nato prilagajajo glede na trendno težo.',
+  'You set fixed targets. Expenditure is still tracked so you can compare.': 'Cilje določiš sam. Poraba se še vedno spremlja, da lahko primerjaš.',
+  'Carbs fill the rest. Fat 20–30 %.': 'OH zapolnijo ostalo. Maščobe 20–30 %.',
+  'Maintain weight': 'Vzdrževanje teže', 'Manual targets': 'Ročni cilji',
+  'Balanced ': 'Uravnoteženo', 'Carbs and fat split evenly after protein': 'Po beljakovinah se OH in maščobe razdelijo enakomerno', 'More room for carbs — good for high-volume training': 'Več prostora za OH — dobro za trening z velikim volumnom',
+  'Higher fat, carbs kept moderate': 'Več maščob, zmerno OH', 'Carbs held around 25 g per day': 'OH okoli 25 g na dan',
+  'Plan updated': 'Načrt posodobljen', 'Targets updated': 'Cilji posodobljeni',
+
+  // lean bulk card & guide
+  'Your lean bulk': 'Tvoj čisti bulk', 'Bulking guide': 'Vodnik za bulk', 'Target gain': 'Ciljni prirast', 'Maintenance': 'Vzdrževanje',
+  'In your first year you can build muscle quickly, so 1–2 % a month is mostly lean mass.': 'V prvem letu lahko mišice gradiš hitro, zato je 1–2 % na mesec večinoma čista mišična masa.',
+  'How fast you gain decides how much fat you add. Muscle can’t be force-fed, so after year one 0.5–1 % a month is the sweet spot.': 'Hitrost pridobivanja določa, koliko maščobe dodaš. Mišic ne moreš »nahraniti na silo«, zato je po prvem letu najboljše 0,5–1 % na mesec.',
+  'Everything that’s left. Carbs fuel hard training — the stimulus that turns the surplus into muscle.': 'Vse, kar ostane. OH dajejo energijo za trd trening — ta spodbuda presežek spremeni v mišice.',
+  'Numbers marked as estimates firm up after two weeks of logging food and weight.': 'Ocene postanejo zanesljive po dveh tednih vnašanja hrane in teže.',
+  'Not enough weigh-ins this week to judge your gain, so calories stay the same. Weigh in at least 3 mornings a week.': 'Ta teden ni bilo dovolj tehtanj za oceno prirasta, zato kalorije ostanejo enake. Tehtaj se vsaj 3 jutra na teden.',
+  'How to gain muscle with as little fat as possible.': 'Kako pridobiti mišice s čim manj maščobe.', 'Why bulk': 'Zakaj bulk',
+  'A calorie surplus builds more muscle than eating at maintenance or recomping. You can still grow without one, but muscle is a lower priority for your body when energy is short. Dirty bulks (eating 50–100 % over maintenance) do build muscle, but add far more fat than muscle. The answer is a controlled surplus.': 'Kalorični presežek zgradi več mišic kot prehrana na vzdrževanju ali rekompozicija. Rasteš lahko tudi brez njega, a ko energije primanjkuje, mišice za telo niso prioriteta. »Umazani« bulki (50–100 % nad vzdrževanjem) sicer gradijo mišice, a dodajo veliko več maščobe kot mišic. Rešitev je nadzorovan presežek.',
+  '1 · Rate of gain': '1 · Hitrost pridobivanja', 'How much fat you gain depends mostly on how fast you gain weight.': 'Koliko maščobe pridobiš, je odvisno predvsem od tega, kako hitro pridobivaš težo.',
+  'Beginner, under ~1 year': 'Začetnik, manj kot ~1 leto', '1–2 % / month': '1–2 % / mesec', 'Intermediate or advanced': 'Srednje izkušen ali napreden', '0.5–1 % / month': '0,5–1 % / mesec',
+  "A beginner may gain almost all muscle. Near your natural limit, expect about half muscle, half fat — that's fine. A slow cut afterwards removes the fat and keeps most of the muscle.": 'Začetnik lahko pridobi skoraj samo mišice. Blizu naravne meje pričakuj približno pol mišic, pol maščobe — to je v redu. Počasna redukcija nato odstrani maščobo in ohrani večino mišic.',
+  '2 · Calories': '2 · Kalorije', 'Find maintenance — the intake where your weight is stable. Best: log food and weight daily for about two weeks. Quick estimate: body weight in lb × 14–18. Then eat 5–10 % above it.': 'Najdi vzdrževanje — vnos, pri katerem je teža stabilna. Najbolje: približno dva tedna vsak dan vnašaj hrano in težo. Hitra ocena: teža v lb × 14–18 (kg × 31–40). Nato jej 5–10 % nad tem.',
+  'Check your trend weight each week and adjust if you gain faster or slower than planned. Maintenance rises as you gain, so it keeps being re-measured.': 'Vsak teden preveri trendno težo in prilagodi, če pridobivaš hitreje ali počasneje od načrta. Vzdrževanje s težo raste, zato se sproti meri znova.',
+  '3 · Macros': '3 · Makrohranila', '0.7–1 g per lb (1.6–2.2 g/kg).': '1,6–2,2 g/kg (0,7–1 g na lb).', '20–30 % of calories.': '20–30 % kalorij.', 'fill the rest.': 'zapolnijo ostalo.',
+  'Once macros are tracked, food choice is flexible — treats fit if they fit your totals. Example day: egg whites, egg, vegetables, oats and berries · lean meat, rice, Greek yogurt and fruit before training · protein shake and a banana after · a flexible dinner · Greek yogurt, honey and peanut butter before bed.': 'Ko spremljaš makrohranila, je izbira hrane prilagodljiva — tudi priboljški gredo, če se ujemajo s seštevki. Primer dneva: beljaki, jajce, zelenjava, ovseni kosmiči in jagodičevje · pusto meso, riž, grški jogurt in sadje pred treningom · proteinski napitek in banana po njem · prilagodljiva večerja · grški jogurt, med in arašidovo maslo pred spanjem.',
+  '4 · Training': '4 · Trening', 'Slacking in the gym during a bulk is the surest way to gain mostly fat.': 'Lenarjenje v fitnesu med bulkom je najzanesljivejša pot do pretežno maščobe.',
+  'Beginner (year 1)': 'Začetnik (1. leto)', 'Learn technique on the basic lifts and push hard with good form. Any split works. At least 3 gym days a week; 4–5 is likely best.': 'Nauči se tehnike osnovnih vaj in treniraj trdo z dobro izvedbo. Deluje katerakoli razdelitev. Vsaj 3 dni fitnesa na teden; 4–5 je verjetno najbolje.',
+  'Intermediate (1–3 years)': 'Srednje izkušen (1–3 leta)', 'More volume than as a beginner, but intensity first: about 8–15 hard sets per muscle per week. Big muscles like the back can take more. Consider moving off a bro split to avoid junk volume.': 'Več volumna kot v začetniškem obdobju, a najprej intenzivnost: približno 8–15 težkih serij na mišico na teden. Velike mišice, kot je hrbet, prenesejo več. Razmisli o opustitvi »bro splita«, da se izogneš praznemu volumnu.',
+  'Advanced (3+ years)': 'Napreden (3+ leta)', 'Specialize: raise volume 20–40 % for one or two lagging muscles at a time (for example delts from 15 to 18–20 sets a week). Lengthened partials and other advanced techniques for the last gains.': 'Specializiraj se: povečaj volumen za 20–40 % za eno ali dve zaostali mišici naenkrat (npr. ramena s 15 na 18–20 serij na teden). Delne ponovitve v raztegu in druge napredne tehnike za zadnje pridobitve.',
+  '5 · Cardio': '5 · Kardio', 'Yes, in moderation. "Cardio kills gains" comes from outdated, low-quality evidence. Better conditioning helps you handle more training volume, especially on leg days. Desk job: 2–3 moderate sessions a week, like a brisk walk or casual sport. Very active job: extra cardio may not be needed.': 'Da, zmerno. »Kardio ubija mišice« izhaja iz zastarelih in slabih dokazov. Boljša kondicija ti pomaga prenesti več volumna, posebej na dan nog. Sedeča služba: 2–3 zmerne vadbe na teden, npr. hitra hoja ali rekreativni šport. Zelo aktivna služba: dodaten kardio morda ni potreben.',
+  '6 · Supplements': '6 · Prehranska dopolnila', 'Core:': 'Osnova:', 'Optional:': 'Neobvezno:',
+  "creatine 5 g a day · protein powder as needed to hit protein · about 200 mg caffeine before training if it doesn't hurt your sleep.": 'kreatin 5 g na dan · beljakovine v prahu po potrebi za dosego cilja · približno 200 mg kofeina pred treningom, če ne moti spanca.',
+  'fish oil (~2 g EPA + DHA a day), magnesium before bed, vitamin D if you get little sun, a multivitamin.': 'ribje olje (~2 g EPA + DHA na dan), magnezij pred spanjem, vitamin D, če si malo na soncu, multivitamin.',
+  "Based on Jeff Nippard, “How To Bulk Like A Pro (Using Science)”. The presenter co-owns MacroFactor; this advice doesn't depend on any app. General information, not medical advice — if you have a medical condition, a history of disordered eating, or are under 18, get individual advice.": 'Po Jeffu Nippardu, »How To Bulk Like A Pro (Using Science)«. Avtor je solastnik aplikacije MacroFactor; nasveti niso vezani na nobeno aplikacijo. Splošne informacije, ne zdravniški nasvet — če imaš zdravstveno težavo, motnjo hranjenja v preteklosti ali si mlajši od 18 let, poišči individualni nasvet.',
+
+  // ---- profile
+  'Profile': 'Profil', 'Sex': 'Spol', 'Female': 'Ženska', 'Male': 'Moški', 'Age': 'Starost', 'Height': 'Višina', 'Activity': 'Aktivnost', 'Body fat': 'Telesna maščoba', 'Not set': 'Ni nastavljeno',
+  'Tracking since': 'Spremljanje od', 'Preferences': 'Nastavitve', 'Weight unit': 'Enota za težo', 'Kilograms': 'Kilogrami', 'Pounds': 'Funti', 'Appearance': 'Videz', 'Auto': 'Samodejno',
+  'Light': 'Svetlo', 'Dark': 'Temno', 'Check-in day': 'Dan pregleda', 'Language': 'Jezik', 'Your data': 'Tvoji podatki',
+  'Everything is stored on this device only. Export a backup regularly, especially before clearing your browser.': 'Vse je shranjeno samo na tej napravi. Redno izvozi varnostno kopijo, posebej preden počistiš brskalnik.',
+  'Export backup': 'Izvozi kopijo', 'Import backup': 'Uvozi kopijo', 'Delete all data': 'Izbriši vse podatke', 'Food data: USDA FoodData Central and Open Food Facts (ODbL).': 'Podatki o hrani: USDA FoodData Central in Open Food Facts (ODbL).',
+  'Edit profile': 'Uredi profil', 'Year of birth': 'Leto rojstva', 'Height (cm)': 'Višina (cm)', 'Height (inches)': 'Višina (palci)', 'Body fat % (optional)': 'Telesna maščoba % (neobvezno)',
+  'Mostly sitting': 'Večinoma sedenje', 'Lightly active': 'Rahlo aktiven', 'Moderately active': 'Zmerno aktiven', 'Very active': 'Zelo aktiven', 'Athlete': 'Športnik',
+  'Desk job, little walking, no training': 'Pisarniško delo, malo hoje, brez treninga', 'On your feet some of the day or 1–3 workouts a week': 'Del dneva na nogah ali 1–3 treningi na teden',
+  'Active job or 3–5 workouts a week': 'Aktivno delo ali 3–5 treningov na teden', 'Hard training 6–7 days a week': 'Trdi treningi 6–7 dni na teden', 'Physical job plus hard daily training': 'Fizično delo in vsakodnevni trdi treningi',
+  'These only shape the starting estimate. After a few weeks your logged data drives expenditure.': 'To vpliva le na začetno oceno. Po nekaj tednih porabo določajo tvoji podatki.',
+  'Reset expenditure estimate to the new profile': 'Ponastavi oceno porabe glede na nov profil', 'Profile saved': 'Profil shranjen',
+
+  // ---- onboarding
+  'Targets that learn from your real metabolism.': 'Cilji, ki se učijo iz tvoje prave presnove.',
+  'Log what you eat and weigh in most mornings. Each week Kalibra measures how much energy you actually burn and adjusts your calories and macros to keep you on pace.': 'Vnašaj, kar poješ, in se tehtaj večino juter. Kalibra vsak teden izmeri, koliko energije dejansko porabiš, in prilagodi kalorije in makrohranila, da ostaneš na poti.',
+  'Setup takes about a minute. Your data stays on this device.': 'Nastavitev traja približno minuto. Podatki ostanejo na tej napravi.', 'Get started': 'Začni',
+  'About you': 'O tebi', 'Used for your starting estimate. Your own data takes over after 2–3 weeks.': 'Za začetno oceno. Po 2–3 tednih prevzamejo tvoji podatki.', 'Units': 'Enote',
+  'Body': 'Telo', 'Weigh yourself in the morning, after the bathroom, before eating.': 'Tehtaj se zjutraj, po stranišču in pred jedjo.', 'Height (ft)': 'Višina (ft)', '(in)': '(in)',
+  'Leave blank if unsure': 'Pusti prazno, če nisi prepričan', 'Only fill in body fat if it comes from a DEXA scan or a reliable method — a wrong number hurts more than none.': 'Telesno maščobo vpiši le, če je iz meritve DEXA ali druge zanesljive metode — napačna številka škodi bolj kot nobena.',
+  'Daily activity': 'Dnevna aktivnost', 'Pick what fits a normal week, including training.': 'Izberi, kar ustreza običajnemu tednu, vključno s treningi.',
+  'Your goal': 'Tvoj cilj', 'Rate is set as a percentage of body weight per week, so it scales as you change.': 'Tempo je določen kot odstotek telesne teže na teden, zato se prilagaja, ko se spreminjaš.',
+  'A lean bulk gains weight slowly on purpose. How fast depends on how long you have trained.': 'Čisti bulk namenoma pridobiva težo počasi. Hitrost je odvisna od tega, kako dolgo že treniraš.',
+  'Calories will track your expenditure so your weight stays stable.': 'Kalorije bodo sledile porabi, da teža ostane stabilna.', 'Weekly rate': 'Tedenski tempo',
+  'Less than about a year of consistent training': 'Manj kot približno leto rednega treninga', '1–3 years of consistent training': '1–3 leta rednega treninga', '3+ years, close to your natural limit': '3+ leta, blizu naravne meje',
+  'Beginners can build muscle fast, so 1–2 % a month is mostly lean mass.': 'Začetniki lahko gradijo mišice hitro, zato je 1–2 % na mesec večinoma čista masa.',
+  'Muscle can’t be force-fed. Near your limit, gaining faster than 0.5–1 % a month mostly adds fat.': 'Mišic ne moreš nahraniti na silo. Blizu meje hitrejše pridobivanje od 0,5–1 % na mesec dodaja predvsem maščobo.',
+  'Under 18? Talk to a doctor or dietitian before bulking.': 'Mlajši od 18 let? Pred bulkom se posvetuj z zdravnikom ali dietetikom.',
+  'How you like to eat': 'Kako rad ješ', 'Moderate 1.6, high 2.0, very high 2.4 g per kg. Above a BMI of 25 it is based on a lean reference weight instead.': 'Zmerno 1,6, visoko 2,0, zelo visoko 2,4 g na kg. Nad ITM 25 se računa iz referenčne pusta teže.',
+  'Your macros': 'Tvoja makrohranila', 'Set in this order: protein first, then fat, and carbs fill the rest.': 'Določijo se po vrsti: najprej beljakovine, nato maščobe, OH zapolnijo ostalo.',
+  'Protein, grams per lb of body weight': 'Beljakovine, gramov na lb (0,45 kg) telesne teže', '0.7–1 g per lb (1.6–2.2 g/kg) covers muscle growth. 0.85 g is a solid middle.': '0,7–1 g na lb (1,6–2,2 g/kg) pokrije rast mišic. 0,85 g je dobra sredina.',
+  'Too little fat can lower testosterone; too much is stored as body fat more easily than carbs.': 'Premalo maščob lahko zniža testosteron; preveč se lažje shrani kot telesna maščoba kot OH.',
+  'Your starting plan': 'Tvoj začetni načrt', 'This is an educated guess. Log consistently and the weekly check-in will correct it to your real numbers.': 'To je premišljena ocena. Redno vnašaj in tedenski pregled jo bo popravil na tvoje prave številke.',
+  'Estimated expenditure': 'Ocenjena poraba', 'Estimated maintenance': 'Ocenjeno vzdrževanje', 'Surplus': 'Presežek', 'Check-in': 'Pregled', 'Start tracking': 'Začni spremljati',
+  'Your target was raised to a safe minimum. Consider a slower rate.': 'Cilj je bil dvignjen na varen minimum. Razmisli o počasnejšem tempu.',
+  'Enter a year of birth (age 13 or older).': 'Vpiši leto rojstva (13 let ali več).', 'Enter your height.': 'Vpiši višino.', 'Enter your current weight.': 'Vpiši trenutno težo.',
+
+  // ---- train
+  'Up next': 'Naslednji', 'Get started ': 'Začni', 'Pick a program': 'Izberi program', 'Start from a proven split or build your own. Kalibra suggests the weight and reps for every set.': 'Začni s preizkušeno razdelitvijo ali sestavi svojo. Kalibra predlaga težo in ponovitve za vsako serijo.',
+  'Browse programs': 'Prebrskaj programe', 'This week': 'Ta teden', 'Empty workout': 'Prazen trening', 'New template': 'Nova predloga', 'Programs': 'Programi', 'Templates': 'Predloge',
+  'Set up my gym': 'Nastavi moj fitnes', 'Pick your gym in Gorenjska or tick your equipment': 'Izberi svoj fitnes na Gorenjskem ali označi opremo',
+  'Training tips': 'Nasveti za trening', 'Best exercises per muscle, tempo, failure, real vs fake overload': 'Najboljše vaje za vsako mišico, tempo, odpoved, prava in lažna progresija',
+  'Sets per muscle this week': 'Serije na mišico ta teden', 'History': 'Zgodovina', 'Exercises': 'Vaje',
+  'No workouts yet': 'Še ni treningov', 'Your finished sessions and personal records show up here.': 'Tu se prikažejo končani treningi in osebni rekordi.',
+  'Direct sets count fully; muscles that assist count as half a set. During your lean bulk aim for about 8–15 hard sets per muscle a week, intensity first; big muscles like the back can take more.': 'Neposredne serije štejejo v celoti, pomožne mišice kot pol serije. Med čistim bulkom ciljaj na približno 8–15 težkih serij na mišico na teden, najprej intenzivnost; velike mišice, kot je hrbet, prenesejo več.',
+  'Direct sets count fully; muscles that assist count as half a set. 10–20 hard sets per muscle per week suits most people; even 3 gets you a good part of the way.': 'Neposredne serije štejejo v celoti, pomožne mišice kot pol serije. 10–20 težkih serij na mišico na teden ustreza večini; že 3 te pripeljejo precej daleč.',
+  'Add a program': 'Dodaj program', 'Programs add one template per training day. Edit them anytime — change exercises, sets or rep ranges.': 'Program doda eno predlogo za vsak dan treninga. Kadarkoli jih lahko urediš — zamenjaš vaje, serije ali razpon ponovitev.',
+  'Top picks upper / lower': 'Najboljše vaje zgoraj / spodaj', 'Full body': 'Celo telo', 'Upper / lower': 'Zgoraj / spodaj', 'Push / pull / legs': 'Potisk / poteg / noge',
+  'built from the best exercise for each muscle': 'iz najboljše vaje za vsako mišico', 'best for beginners and busy weeks': 'najboljše za začetnike in natrpane tedne', 'balanced strength and size': 'uravnotežena moč in velikost', 'high volume per muscle': 'velik volumen na mišico',
+  'Upper A': 'Zgoraj A', 'Upper B': 'Zgoraj B', 'Lower A': 'Spodaj A', 'Lower B': 'Spodaj B', 'Upper': 'Zgoraj', 'Lower': 'Spodaj', 'Full body A': 'Celo telo A', 'Full body B': 'Celo telo B', 'Push': 'Potisk', 'Pull': 'Poteg', 'Legs': 'Noge', 'Workout': 'Trening', 'My workout': 'Moj trening',
+  'New template ': 'Nova predloga', 'Edit template': 'Uredi predlogo', 'e.g. Push day': 'npr. dan potiska', 'No exercises yet.': 'Še ni vaj.', 'Add exercise': 'Dodaj vajo', 'Save template': 'Shrani predlogo', 'Delete template': 'Izbriši predlogo',
+  'Not at your gym': 'Ni v tvojem fitnesu', 'Delete workout': 'Izbriši trening', 'Warm-up': 'Ogrevanje', 'Elapsed': 'Čas', 'Finish': 'Končaj', 'Exercise options': 'Možnosti vaje',
+  'Setup cues': 'Nasveti za izvedbo', 'Set': 'Serija', 'Previous': 'Prejšnjič', 'Reps': 'Ponov.', 'RIR': 'RIR', 'Set type': 'Vrsta serije', 'Reps in reserve': 'Ponovitve v rezervi', 'Complete set': 'Zaključi serijo',
+  'Add set': 'Dodaj serijo', 'Swap it': 'Zamenjaj', 'Discard workout': 'Zavrzi trening', 'Rest': 'Počitek', 'Skip': 'Preskoči', 'Min reps': 'Min. ponovitev', 'Max reps': 'Maks. ponovitev',
+  'Target reps in reserve': 'Ciljne ponovitve v rezervi', 'Rest between sets': 'Počitek med serijami', 'No timer': 'Brez časovnika', 'Move up': 'Premakni gor', 'Move down': 'Premakni dol', 'Swap exercise': 'Zamenjaj vajo',
+  'My technique changed today (looser form, more momentum, shorter range). Extra reps with changed form are fake overload — they don\'t mean more muscle.': 'Danes se je moja tehnika spremenila (slabša izvedba, več zamaha, krajši gib). Dodatne ponovitve s spremenjeno tehniko so lažna progresija — ne pomenijo več mišic.',
+  'Technique marked as changed today — extra reps may be fake overload.': 'Tehnika je danes označena kot spremenjena — dodatne ponovitve so morda lažna progresija.',
+  'Minutes of steady effort': 'Minute enakomernega napora', 'Time ': 'Čas', 'Hold': 'Drža', 'Best match': 'Najboljše ujemanje', 'Stretch': 'Razteg', 'Overload': 'Progresija', 'Top pick': 'Najboljša izbira',
+  'Include exercises your gym can’t do': 'Vključi vaje, ki jih tvoj fitnes ne omogoča', 'Browse all exercises': 'Prebrskaj vse vaje', 'Sharp pain, or pain in a joint, means stop and swap.': 'Ostra bolečina ali bolečina v sklepu pomeni: ustavi se in zamenjaj vajo.',
+  'Show again': 'Pokaži znova', 'Hidden from swap suggestions': 'Skrito iz predlogov za zamenjavo', 'Create exercise': 'Ustvari vajo', 'Search exercises': 'Išči vaje',
+  'e.g. Smith machine squat': 'npr. počep na Smithovi napravi', 'Main muscle': 'Glavna mišica', 'Equipment': 'Oprema', 'Save exercise': 'Shrani vajo',
+  'Ranked by how well each one ticks the three boxes: tension when the muscle is stretched, feels good in your joints, and room to keep adding reps or weight. The same movement pattern ranks first.': 'Razvrščeno po tem, kako dobro vaja izpolni tri merila: napetost, ko je mišica raztegnjena, prijeten občutek v sklepih in možnost dodajanja ponovitev ali teže. Enak vzorec giba je na vrhu.',
+  'Workout complete': 'Trening končan', 'kg lifted': 'kg dvignjeno', 'lb lifted': 'lb dvignjeno', 'sets beat': 'izboljšane serije', 'kcal est.': 'kcal ocena', 'Refuel': 'Napolni zaloge', 'Log a meal': 'Vnesi obrok',
+  'You have already hit your protein target today — nice.': 'Danes si že dosegel cilj beljakovin — odlično.', 'Even one extra rep is progressive overload.': 'Že ena dodatna ponovitev je progresija.',
+  'Save as template': 'Shrani kot predlogo', 'Update template with these changes': 'Posodobi predlogo s temi spremembami', 'Template name': 'Ime predloge', 'Template saved': 'Predloga shranjena', 'Template updated': 'Predloga posodobljena',
+  'Workout discarded': 'Trening zavržen', 'Rest over — next set': 'Počitek je končan — naslednja serija', 'Enter reps': 'Vpiši ponovitve', 'Enter minutes': 'Vpiši minute', 'Name the template': 'Poimenuj predlogo',
+  'Give the exercise a name': 'Poimenuj vajo', 'Showing all exercises': 'Prikazane so vse vaje', 'Name your gym': 'Poimenuj svoj fitnes',
+  'Estimated 1-rep max': 'Ocenjeni 1RM', 'Log this exercise in two sessions to see your trend.': 'To vajo vnesi na dveh treningih, da vidiš trend.', 'Tension in the stretch': 'Napetost v raztegu',
+  'Easy to overload': 'Lahka progresija', 'Default rep range': 'Privzeti razpon ponovitev', 'Low': 'Nizka', 'Medium': 'Srednja', 'Hard': 'Težka', 'Easy': 'Lahka', 'Not logged yet.': 'Še ni vneseno.',
+  'Same load, one more rep': 'Ista teža, ena ponovitev več', 'Below range last time — load adjusted': 'Prejšnjič pod razponom — teža prilagojena', 'Beat last time — add a rep': 'Premagaj prejšnjič — dodaj ponovitev', 'Add a rep per set': 'Dodaj ponovitev na serijo',
+  'Empty workout ': 'Prazen trening', 'Add your first exercise to get going.': 'Dodaj prvo vajo in začni.',
+  // tips
+  'How to pick exercises and make every set count.': 'Kako izbrati vaje in izkoristiti vsako serijo.', 'How to judge an exercise': 'Kako oceniti vajo', 'An exercise earns a top spot when it has all three:': 'Vaja si zasluži vrh, ko ima vse tri lastnosti:',
+  'High tension in the stretch': 'Velika napetost v raztegu', '— the muscle has something to work against when it’s longest.': '— mišica ima upor, ko je najbolj raztegnjena.', 'It feels good': 'Prijeten občutek',
+  '— smooth, no pain, felt in the muscle more than the joints.': '— gladko, brez bolečin, čutiš jo v mišici bolj kot v sklepih.', 'Room to overload': 'Prostor za progresijo', '— you can keep adding reps or weight.': '— lahko dodajaš ponovitve ali težo.',
+  'Use these to choose a substitute when a machine is taken or something hurts. The Swap button in a workout does this for you.': 'S temi merili izberi zamenjavo, ko je naprava zasedena ali kaj boli. Gumb Zamenjaj na treningu to naredi namesto tebe.',
+  'Top picks per muscle': 'Najboljše vaje za vsako mišico', 'quads + glutes': 'stegenske + zadnjične', 'hamstrings': 'zadnje stegenske', 'whole chest': 'celotne prsi', 'chest stretch': 'prsi v raztegu',
+  'back (horizontal)': 'hrbet (vodoravno)', 'back (vertical)': 'hrbet (navpično)', 'side delts': 'stranske rame', 'rear delts': 'zadnje rame', 'biceps': 'biceps', 'triceps stretch': 'triceps v raztegu', 'triceps contraction': 'triceps v krčenju',
+  'Train back with two types: a vertical pull and a horizontal row. Train triceps both ways: overhead (stretch) and with the arm behind you (contraction). Tap a pick for setup cues.': 'Hrbet treniraj z dvema vrstama: navpičnim potegom in vodoravnim veslanjem. Triceps treniraj na oba načina: nad glavo (razteg) in z roko za telesom (krčenje). Tapni vajo za nasvete.',
+  'Rep tempo': 'Tempo ponovitev', 'Anywhere from 2 to 8 seconds per full rep works equally well. Avoid bouncy, very fast reps and very slow 10–20 second reps. Control the lowering.': 'Od 2 do 8 sekund na ponovitev deluje enako dobro. Izogibaj se odbijajočim, zelo hitrim ponovitvam in zelo počasnim (10–20 sekund). Nadzoruj spuščanje.',
+  'Sets to failure': 'Serije do odpovedi', 'For higher-rep work, take at least one set to true failure. Most people stop 4–5 reps early when they “feel done”. Log reps in reserve (RIR) honestly — Kalibra uses it to suggest your next weight.': 'Pri več ponovitvah vsaj eno serijo izvedi do prave odpovedi. Večina se ustavi 4–5 ponovitev prezgodaj, ko »občuti konec«. Ponovitve v rezervi (RIR) vnašaj pošteno — Kalibra jih uporabi za predlog naslednje teže.',
+  'Weekly volume': 'Tedenski volumen', 'About 3 hard sets a week for a muscle already gives roughly 60 % of the growth possible. More sets add more, with diminishing returns. The Sets per muscle chart on the Train tab tracks this.': 'Približno 3 težke serije na teden za mišico že dajo okoli 60 % možne rasti. Več serij doda več, a z vse manjšim učinkom. Graf Serije na mišico v zavihku Trening to spremlja.',
+  'Lengthened partials': 'Delne ponovitve v raztegu', 'Partial reps in the stretched half of the range — for a squat, only come about halfway up. Harder than full reps, because there’s no rest at the top.': 'Delne ponovitve v raztegnjeni polovici giba — pri počepu se dvigni le do polovice. Težje kot polne ponovitve, ker na vrhu ni počitka.',
+  'Progressive overload — and the fake kind': 'Progresija — in lažna progresija', 'Track every set. Adding one rep to one set is progress, even when the weight on lateral raises stalls for months. Kalibra marks these with a green “+1 rep”.': 'Beleži vsako serijo. Ena ponovitev več v eni seriji je napredek, tudi ko teža pri odročenjih mesece stoji. Kalibra to označi z zelenim »+1 pon.«.',
+  'Watch for fake overload:': 'Pazi na lažno progresijo:', 'technique slowly getting looser, like your chest coming off the pad on a supported row by week six. Keep form the same every week. If your form changed, mark it in the exercise menu and Kalibra will flag rep jumps on that day.': 'tehnika postaja počasi ohlapnejša, npr. prsi se pri veslanju z oporo do šestega tedna dvigujejo z blazine. Izvedba naj bo vsak teden enaka. Če se je spremenila, jo označi v meniju vaje in Kalibra bo označila skoke ponovitev tisti dan.',
+  'Calves and abs': 'Meča in trebušne', 'The source video skips them. The library includes standing and seated calf raises, cable crunches, hanging leg raises and ab-wheel rollouts — the same three criteria apply.': 'Izvorni video jih preskoči. Knjižnica vsebuje dvige na prste stoje in sede, trebušnjake na kablu, dvige nog v visi in kotaljenje s kolescem — veljajo ista tri merila.',
+  "Picks and numbers from Will Tennyson ft. Jeff Nippard, “The Best Exercises For Every Muscle”. The video is sponsored by MacroFactor, which doesn't affect the exercise advice. Stretch and overload ratings for other exercises are Kalibra's own. General information, not medical advice — sharp or joint pain means stop and swap.": 'Izbor in številke po Will Tennyson ft. Jeff Nippard, »The Best Exercises For Every Muscle«. Video sponzorira MacroFactor, kar ne vpliva na nasvete o vajah. Ocene raztega in progresije za druge vaje so Kalibrine. Splošne informacije, ne zdravniški nasvet — ostra bolečina ali bolečina v sklepu pomeni: ustavi se in zamenjaj.',
+  // cues
+  'Lets you go closer to failure with less sense of risk than a free squat. Option: lengthened partials — only come about halfway up.': 'Omogoča, da greš bliže odpovedi z manjšim občutkom tveganja kot pri prostem počepu. Možnost: delne ponovitve v raztegu — dvigni se le do polovice.',
+  'Lean your torso forward for more stretch, as long as it still feels stable. Seated curls grew about 1.5× more hamstring than lying curls in one study.': 'Nagni trup naprej za večji razteg, dokler je še stabilno. V eni študiji so upogibi sede zgradili približno 1,5-krat več zadnjih stegenskih kot upogibi leže.',
+  'Bench at about 45°. Press straight up, not out in front of you. Use safeties. Grows the mid and lower chest as well as the upper.': 'Klop na približno 45°. Potiskaj naravnost navzgor, ne naprej. Uporabi varovala. Gradi srednji in spodnji del prsi, ne le zgornjega.',
+  'Get deep into the stretch. Higher reps, and take at least one set to failure.': 'Pojdi globoko v razteg. Več ponovitev, vsaj eno serijo do odpovedi.',
+  'Let your shoulder blades spread at the bottom, squeeze them together at the top. Keep your chest on the pad every week.': 'Spodaj pusti lopaticam, da se razprejo, zgoraj jih stisni skupaj. Prsi naj bodo vsak teden na blazini.',
+  'Drive your elbows straight down "into your pockets" for lats. Lean back and pull elbows back to hit more mid-back.': 'Za široke hrbtne mišice vleci komolce naravnost dol »v žepe«. Nagni se nazaj in vleci komolce nazaj za več srednjega hrbta.',
+  'Raise the pulley so the cable meets your arm at 90° near the bottom of the rep, where the delt is stretched.': 'Škripec dvigni tako, da je kabel pod 90° na roko blizu dna ponovitve, kjer je rama raztegnjena.',
+  'Stand turned sideways, reach across your body to pre-stretch, then sweep out.': 'Postavi se bočno, sezi čez telo za predhodni razteg, nato potegni navzven.',
+  'Set the cable behind you at about hand height, so peak tension comes in the stretch.': 'Kabel nastavi za seboj približno v višini roke, da je največja napetost v raztegu.',
+  'Arm overhead stretches the long head — the biggest of the three triceps heads.': 'Roka nad glavo raztegne dolgo glavo — največjo od treh glav tricepsa.',
+  'Lean back so your upper arm goes behind your torso, where the long head fully contracts.': 'Nagni se nazaj, da je nadlaket za trupom, kjer se dolga glava popolnoma skrči.',
+  'Hard to overload steadily because your body weight changes. A pulldown is easier to take to failure.': 'Težko je enakomerno napredovati, ker se telesna teža spreminja. Poteg na lat napravi je lažje izvesti do odpovedi.',
+  'A dumbbell gives little tension at the bottom, where the delt is stretched. The cable version fixes that.': 'Ročka daje malo napetosti spodaj, kjer je rama raztegnjena. Različica s kablom to odpravi.',
+  'Covers quads and glutes, but barely changes hamstring length — train hamstrings separately.': 'Pokrije stegenske in zadnjične mišice, a skoraj ne spremeni dolžine zadnjih stegenskih — te treniraj posebej.',
+  'Misses the hamstring head that doesn’t cross the hip — pair it with a leg curl.': 'Zgreši glavo zadnje stegenske, ki ne prečka kolka — kombiniraj z upogibom nog.',
+  'Control the lowering, 2–8 seconds per rep, and keep your form the same every week.': 'Nadzoruj spuščanje, 2–8 sekund na ponovitev, izvedba naj bo vsak teden enaka.',
+  // gym
+  'My gym': 'Moj fitnes', 'Tick what your gym has. Exercise picks, swaps and new programs then stick to equipment you can actually use.': 'Označi, kaj ima tvoj fitnes. Izbor vaj, zamenjave in novi programi nato uporabljajo le opremo, ki jo res imaš.',
+  'Gyms in Gorenjska': 'Fitnesi na Gorenjskem', 'Another gym or home gym': 'Drug fitnes ali domači fitnes', 'Name it and tick its equipment': 'Poimenuj ga in označi opremo',
+  'Gym details from public listings, checked November 2026 — hours and prices change, so confirm with the gym.': 'Podatki o fitnesih iz javnih virov, preverjeni novembra 2026 — urnik in cene se spreminjajo, zato preveri v fitnesu.',
+  'Typical gym': 'Tipičen fitnes', 'Everything': 'Vse', 'Home gym': 'Domači fitnes', 'named in gym listing': 'navedeno v opisu fitnesa', 'Save my gym': 'Shrani moj fitnes', 'Gym name': 'Ime fitnesa',
+  'e.g. Home gym': 'npr. domači fitnes', 'Equipment at your gym': 'Oprema v tvojem fitnesu', 'Website': 'Spletna stran', 'Stop filtering by gym': 'Ne filtriraj po fitnesu', 'Open 24/7': 'Odprto 24/7',
+  'Sauna': 'Savna', 'Separate cardio, weights and machine zones': 'Ločene cone za kardio, uteži in naprave', 'CrossFit hall': 'Dvorana za CrossFit', 'Squash court': 'Igrišče za skvoš', 'Free parking': 'Brezplačno parkiranje',
+  'Cardio and isotonic machine areas': 'Območja s kardio in izotoničnimi napravami', 'Mirrored walls': 'Stene z ogledali', 'Small private room with a punching bag': 'Majhna zasebna soba z boksarsko vrečo',
+  'Cardio, strength and functional areas': 'Območja za kardio, moč in funkcionalno vadbo', 'Personal trainers': 'Osebni trenerji', 'Day pass 10 €, month 55 € (older price list)': 'Dnevna 10 €, mesečna 55 € (starejši cenik)',
+  'Weightlifting and powerlifting': 'Dvigovanje uteži in powerlifting', 'Personal training': 'Osebni trening', 'Nutrition advice': 'Prehransko svetovanje',
+  'Has a free-weights zone; specific machines are not listed publicly.': 'Ima cono prostih uteži; posamezne naprave niso javno navedene.',
+  'A directory listing claims 60+ machines and 8 t of weights (third-party figure). Free weights, treadmills and bikes are confirmed by a review on the gym’s site.': 'Imenik navaja 60+ naprav in 8 t uteži (podatek tretje osebe). Proste uteži, tekalne steze in kolesa potrjuje mnenje na strani fitnesa.',
+  'Most machines are Technogym according to reviews.': 'Po mnenjih je večina naprav znamke Technogym.', 'Equipped with Technogym machines; specific machines are not listed publicly.': 'Opremljen z napravami Technogym; posamezne naprave niso javno navedene.',
+  'Free weights confirmed; closest larger gym to Radovljica and Bled.': 'Proste uteži potrjene; najbližji večji fitnes Radovljici in Bledu.',
+  'The gym lists free weights, a range of Olympic bars, strength machines and endurance machines.': 'Fitnes navaja proste uteži, različne olimpijske droge, naprave za moč in vzdržljivost.',
+  'Listed in a gym directory; no equipment details published.': 'Naveden v imeniku fitnesov; podrobnosti o opremi niso objavljene.',
+  '40 machines, 12 of them cardio': '40 naprav, od tega 12 kardio', 'Every day 5:00–24:00 (one directory says 9:00–21:00 — check)': 'Vsak dan 5:00–24:00 (en imenik navaja 9:00–21:00 — preveri)',
+  // equipment
+  'Barbell and squat rack': 'Drog in stojalo za počepe', 'Dumbbells': 'Ročke', 'Adjustable bench': 'Nastavljiva klop', 'Smith machine': 'Smithova naprava', 'Cable station / crossover': 'Kabelska postaja / crossover',
+  'Lat pulldown': 'Poteg na lat napravi', 'Chest-supported row machine': 'Naprava za veslanje z oporo za prsi', 'Chest press machine': 'Naprava za potisk s prsi', 'Pec deck / rear delt machine': 'Pec deck / naprava za zadnje rame',
+  'Shoulder press machine': 'Naprava za potisk nad glavo', 'Leg press': 'Nožna preša', 'Hack squat': 'Hack počep', 'Leg extension': 'Iztegovanje nog', 'Seated leg curl': 'Upogibanje nog sede', 'Lying leg curl': 'Upogibanje nog leže',
+  'Calf raise machine': 'Naprava za dvige na prste', 'Hip abduction / adduction machine': 'Naprava za odmik / primik kolka', 'Preacher curl bench': 'Scottova klop', 'Pull-up / dip station': 'Postaja za zgibe / dipse', 'Cardio machines': 'Kardio naprave',
+  'Barbell': 'Drog', 'Dumbbell': 'Ročka', 'Machine': 'Naprava', 'Cable': 'Kabel', 'Bodyweight': 'Lastna teža', 'Cardio': 'Kardio',
+  // muscles
+  'Chest': 'Prsi', 'Lats': 'Široke hrbtne', 'Upper back': 'Zgornji hrbet', 'Traps': 'Trapezi', 'Front delts': 'Sprednje rame', 'Side delts': 'Stranske rame', 'Rear delts': 'Zadnje rame',
+  'Biceps': 'Biceps', 'Triceps': 'Triceps', 'Forearms': 'Podlakti', 'Quads': 'Stegenske', 'Hamstrings': 'Zadnje stegenske', 'Glutes': 'Zadnjične', 'Adductors': 'Primikalke', 'Calves': 'Meča', 'Abs': 'Trebušne', 'Lower back': 'Spodnji hrbet',
+  // misc toasts & dialogs
+  'Backup restored': 'Kopija obnovljena', 'Enter a valid height': 'Vpiši veljavno višino', 'Enter a valid weight': 'Vpiši veljavno težo', 'Enter an amount': 'Vpiši količino', 'Enter calories or macros': 'Vpiši kalorije ali makrohranila',
+  'Enter the serving size in grams': 'Vpiši velikost porcije v gramih', 'Entry deleted': 'Vnos izbrisan', 'Entry updated': 'Vnos posodobljen', 'Give the food a name': 'Poimenuj živilo', 'Keep at least one weigh-in': 'Obdrži vsaj eno tehtanje',
+  'Lookup failed — check your connection': 'Iskanje ni uspelo — preveri povezavo', 'No earlier day with food to copy': 'Ni prejšnjega dne s hrano za kopiranje', 'Product not found — add it yourself': 'Izdelka ni — dodaj ga sam',
+  'Storage is full — export a backup': 'Shramba je polna — izvozi kopijo', 'That file is not a Kalibra backup': 'Ta datoteka ni Kalibra kopija', 'Weigh-in deleted': 'Tehtanje izbrisano', 'Weight saved': 'Teža shranjena',
+  'Delete all food logs, weigh-ins and settings from this device? This cannot be undone.': 'Izbrišem vse vnose hrane, tehtanja in nastavitve s te naprave? Tega ni mogoče razveljaviti.',
+  'Delete this template? Past workouts are kept.': 'Izbrišem to predlogo? Pretekli treningi ostanejo.', 'Delete this workout from your history?': 'Izbrišem ta trening iz zgodovine?',
+  'Discard this workout? Logged sets will be lost.': 'Zavržem ta trening? Vnesene serije bodo izgubljene.', 'No sets are checked off. Discard this workout?': 'Nobena serija ni označena. Zavržem ta trening?',
+};
+
+// ---- food names
+Object.assign(S, {
+  'Chicken breast, skinless, roasted': 'Piščančje prsi, brez kože, pečene', 'Chicken breast, skinless, raw': 'Piščančje prsi, brez kože, surove', 'Chicken thigh, skinless, roasted': 'Piščančje bedro, brez kože, pečeno',
+  'Turkey breast, roasted': 'Puranje prsi, pečene', 'Ground beef 90/10, raw': 'Mleta govedina 90/10, surova', 'Ground beef 90/10, pan-browned': 'Mleta govedina 90/10, popečena', 'Ground beef 80/20, raw': 'Mleta govedina 80/20, surova',
+  'Ground beef 80/20, pan-browned': 'Mleta govedina 80/20, popečena', 'Beef top sirloin, lean, broiled': 'Goveji ramstek, pust, pečen na žaru', 'Pork tenderloin, roasted': 'Svinjska ribica, pečena', 'Bacon, pan-fried': 'Slanina, popečena',
+  'Ham, sliced': 'Šunka, narezana', 'Salmon, Atlantic farmed, raw': 'Losos, atlantski, gojen, surov', 'Salmon, Atlantic farmed, cooked': 'Losos, atlantski, gojen, pečen', 'Tuna, canned in water, drained': 'Tuna v lastnem soku, odcejena',
+  'Cod, cooked': 'Trska, kuhana', 'Shrimp, cooked': 'Kozice, kuhane', 'Egg, whole, large': 'Jajce, celo, veliko', 'Egg white': 'Beljak', 'Tofu, firm': 'Tofu, čvrst', 'Tempeh': 'Tempeh',
+  'Whey protein powder (typical)': 'Sirotkine beljakovine v prahu (tipično)', 'Greek yogurt, plain, nonfat': 'Grški jogurt, navaden, posneti', 'Greek yogurt, plain, whole milk': 'Grški jogurt, navaden, polnomastni', 'Skyr, plain': 'Skyr, navaden',
+  'Cottage cheese, 2%': 'Cottage sir, 2 %', 'Milk, whole (3.25%)': 'Mleko, polnomastno (3,5 %)', 'Milk, 2%': 'Mleko, 2 %', 'Milk, skim': 'Mleko, posneto', 'Cheddar cheese': 'Sir cheddar', 'Mozzarella, part-skim': 'Mocarela, delno posneta',
+  'Parmesan, hard': 'Parmezan', 'Feta cheese': 'Feta sir', 'Cream cheese': 'Kremni sir', 'Butter': 'Maslo', 'White rice, cooked': 'Beli riž, kuhan', 'White rice, uncooked': 'Beli riž, surov', 'Brown rice, cooked': 'Rjavi riž, kuhan',
+  'Oats, rolled, dry': 'Ovseni kosmiči, suhi', 'Pasta, dry': 'Testenine, suhe', 'Pasta, cooked': 'Testenine, kuhane', 'Bread, white': 'Kruh, bel', 'Bread, whole wheat': 'Kruh, polnozrnat', 'Bagel, plain': 'Bagel, navaden',
+  'Tortilla, flour': 'Tortilja, pšenična', 'Quinoa, cooked': 'Kvinoja, kuhana', 'Couscous, cooked': 'Kuskus, kuhan', 'Rice noodles, cooked': 'Riževi rezanci, kuhani', 'Rice cakes, plain': 'Riževi vaflji, navadni',
+  'Potato, baked with skin': 'Krompir, pečen v lupini', 'Potato, boiled, no skin': 'Krompir, kuhan, olupljen', 'Sweet potato, baked': 'Sladki krompir, pečen', 'Popcorn, air-popped': 'Pokovka, brez olja',
+  'Banana': 'Banana', 'Apple': 'Jabolko', 'Orange': 'Pomaranča', 'Strawberries': 'Jagode', 'Blueberries': 'Borovnice', 'Raspberries': 'Maline', 'Grapes': 'Grozdje', 'Pineapple': 'Ananas', 'Mango': 'Mango', 'Kiwi': 'Kivi',
+  'Pear': 'Hruška', 'Watermelon': 'Lubenica', 'Avocado': 'Avokado', 'Dates, Medjool': 'Dateljni, Medjool', 'Raisins': 'Rozine', 'Broccoli': 'Brokoli', 'Spinach': 'Špinača', 'Carrot': 'Korenje', 'Tomato': 'Paradižnik',
+  'Cucumber': 'Kumara', 'Bell pepper, red': 'Paprika, rdeča', 'Onion': 'Čebula', 'Romaine lettuce': 'Rimska solata', 'Zucchini': 'Bučka', 'Green beans': 'Stročji fižol', 'Cauliflower': 'Cvetača', 'Mushrooms, white': 'Šampinjoni',
+  'Green peas': 'Grah', 'Sweet corn': 'Sladka koruza', 'Asparagus': 'Šparglji', 'Kale': 'Ohrovt (kodrolistni)', 'Brussels sprouts': 'Brstični ohrovt', 'Black beans, cooked': 'Črni fižol, kuhan', 'Chickpeas, cooked': 'Čičerika, kuhana',
+  'Lentils, cooked': 'Leča, kuhana', 'Kidney beans, cooked': 'Rdeči fižol, kuhan', 'Edamame, prepared': 'Edamame, pripravljen', 'Hummus': 'Humus', 'Almonds': 'Mandlji', 'Peanuts': 'Arašidi', 'Peanut butter, smooth': 'Arašidovo maslo, gladko',
+  'Almond butter': 'Mandljevo maslo', 'Walnuts': 'Orehi', 'Cashews': 'Indijski oreščki', 'Pumpkin seeds': 'Bučna semena', 'Chia seeds': 'Chia semena', 'Flaxseed': 'Lanena semena', 'Olive oil': 'Olivno olje', 'Coconut oil': 'Kokosovo olje',
+  'Mayonnaise': 'Majoneza', 'Dark chocolate, 70–85%': 'Temna čokolada, 70–85 %', 'Honey': 'Med', 'Sugar, white': 'Sladkor, bel', 'Maple syrup': 'Javorjev sirup', 'Jam': 'Marmelada', 'Ketchup': 'Kečap', 'Soy sauce': 'Sojina omaka',
+  'Pizza, cheese, regular crust': 'Pica s sirom, navadno testo', 'French fries, fast food': 'Pomfrit, hitra hrana', 'Cola (regular)': 'Kola (navadna)', 'Orange juice': 'Pomarančni sok', 'Beer, regular': 'Pivo, navadno', 'Wine, red': 'Vino, rdeče',
+  'Almond milk, unsweetened': 'Mandljevo mleko, nesladkano', 'Coffee, black': 'Kava, črna', 'Chicken drumstick, skinless, roasted': 'Piščančja krača, brez kože, pečena', 'Chicken wings, with skin, roasted': 'Piščančje perutničke, s kožo, pečene',
+  'Ground turkey 93/7, cooked': 'Mleta puranina 93/7, pečena', 'Ground pork, cooked': 'Mleta svinjina, pečena', 'Tuna, yellowfin, cooked': 'Tuna, rumenoplavuta, pečena', 'Tuna, canned in oil, drained': 'Tuna v olju, odcejena',
+  'Sardines, canned in oil, drained': 'Sardele v olju, odcejene', 'Mackerel, Atlantic, cooked': 'Skuša, atlantska, pečena', 'Trout, rainbow, farmed, cooked': 'Postrv, šarenka, gojena, pečena', 'Tilapia, cooked': 'Tilapija, pečena',
+  'Smoked salmon': 'Dimljeni losos', 'Beef jerky': 'Sušena govedina (jerky)', 'Liver pâté': 'Jetrna pašteta', 'Egg, hard-boiled': 'Jajce, trdo kuhano', 'Egg, fried': 'Jajce, ocvrto', 'Egg, scrambled': 'Umešana jajca',
+  'Mozzarella, whole milk': 'Mocarela, polnomastna', 'Gouda cheese': 'Sir gauda', 'Swiss / Emmental cheese': 'Ementalec', 'Ricotta, part-skim': 'Rikota, delno posneta', 'Cottage cheese, 4%': 'Cottage sir, 4 %',
+  'Yogurt, plain, whole milk': 'Jogurt, navaden, polnomastni', 'Yogurt, plain, low-fat': 'Jogurt, navaden, z malo maščobe', 'Kefir, low-fat': 'Kefir, z malo maščobe', 'Heavy cream': 'Sladka smetana', 'Sour cream': 'Kisla smetana',
+  'Ice cream, vanilla': 'Sladoled, vanilijev', 'Whole wheat pasta, cooked': 'Polnozrnate testenine, kuhane', 'Egg noodles, cooked': 'Jajčni rezanci, kuhani', 'Bulgur, cooked': 'Bulgur, kuhan', 'Buckwheat groats, cooked': 'Ajdova kaša, kuhana',
+  'Millet, cooked': 'Prosena kaša, kuhana', 'Cornmeal / polenta, dry': 'Koruzni zdrob / polenta, suha', 'Corn tortilla': 'Koruzna tortilja', 'Pita bread, white': 'Pita kruh, bel', 'Rye bread': 'Rženi kruh', 'French bread / baguette': 'Bageta',
+  'Croissant, butter': 'Rogljiček, maslen', 'Pretzels, hard': 'Preste, trde', 'Pancakes, plain': 'Ameriške palačinke', 'Corn flakes': 'Koruzni kosmiči', 'Mashed potatoes, with milk and butter': 'Pire krompir z mlekom in maslom',
+  'Peach': 'Breskev', 'Plum': 'Sliva', 'Cherries, sweet': 'Češnje', 'Apricot': 'Marelica', 'Grapefruit': 'Grenivka', 'Tangerine / mandarin': 'Mandarina', 'Blackberries': 'Robide', 'Cantaloupe melon': 'Melona', 'Pomegranate': 'Granatno jabolko',
+  'Figs, dried': 'Fige, suhe', 'Apricots, dried': 'Marelice, suhe', 'Prunes': 'Suhe slive', 'Cranberries, dried, sweetened': 'Brusnice, suhe, sladkane', 'Applesauce, unsweetened': 'Jabolčna čežana, nesladkana', 'Cabbage': 'Zelje',
+  'Red cabbage': 'Rdeče zelje', 'Eggplant': 'Jajčevec', 'Celery': 'Zelena', 'Garlic': 'Česen', 'Beetroot': 'Rdeča pesa', 'Radish': 'Redkvica', 'Leek': 'Por', 'Arugula / rocket': 'Rukola', 'Pumpkin': 'Buča', 'Spinach, cooked': 'Špinača, kuhana',
+  'Bell pepper, green': 'Paprika, zelena', 'Bell pepper, yellow': 'Paprika, rumena', 'Sauerkraut': 'Kislo zelje', 'Pickles, dill': 'Kisle kumarice', 'Olives, green': 'Olive, zelene', 'Tomato sauce, canned': 'Paradižnikova omaka, konzervirana',
+  'White beans, cooked': 'Beli fižol, kuhan', 'Pinto beans, cooked': 'Pisani fižol, kuhan', 'Split peas, cooked': 'Polovičen grah, kuhan', 'Soy milk, unsweetened': 'Sojino mleko, nesladkano', 'Hazelnuts': 'Lešniki', 'Pistachios': 'Pistacije',
+  'Macadamia nuts': 'Makadamija', 'Pecans': 'Pekan orehi', 'Brazil nuts': 'Brazilski oreščki', 'Sunflower seeds': 'Sončnična semena', 'Sesame seeds': 'Sezam', 'Tahini': 'Tahini', 'Hemp seeds, hulled': 'Konopljina semena, oluščena',
+  'Hazelnut cocoa spread': 'Lešnikov namaz s kakavom', 'Potato chips': 'Čips', 'Milk chocolate': 'Mlečna čokolada', 'Gummy bears': 'Gumijasti medvedki', 'Mustard, yellow': 'Gorčica', 'BBQ sauce': 'Omaka BBQ', 'Balsamic vinegar': 'Balzamični kis',
+  'Pumpkin seed oil': 'Bučno olje', 'Apple juice': 'Jabolčni sok', 'Wine, white': 'Vino, belo', 'Spirits, 40% (vodka, gin, rum)': 'Žgane pijače, 40 % (vodka, gin, rum)', 'Coconut water': 'Kokosova voda', 'Energy drink (regular)': 'Energijska pijača (navadna)',
+  'Cola zero / diet soda': 'Kola zero / dietna pijača', 'Tea, unsweetened': 'Čaj, nesladkan', 'Kranjska klobasa (Carniolan sausage)': 'Kranjska klobasa', 'Pršut (dry-cured ham)': 'Pršut', 'Ajvar (roasted pepper relish)': 'Ajvar',
+  'Burek s sirom (cheese burek)': 'Burek s sirom', 'Burek z mesom (meat burek)': 'Burek z mesom', 'Štruklji, skutni (cottage-cheese rolls, boiled)': 'Štruklji, skutni (kuhani)', 'Potica, orehova (walnut roll)': 'Potica, orehova',
+  'Kremna rezina / kremšnita (cream slice)': 'Kremna rezina / kremšnita', 'Ajdovi žganci (buckwheat, plain)': 'Ajdovi žganci (navadni)', 'Polenta, cooked in water': 'Polenta, kuhana v vodi', 'Jota (bean and sauerkraut stew)': 'Jota',
+  'Ričet (barley and bean stew)': 'Ričet', 'Golaž (beef goulash)': 'Goveji golaž', 'Dunajski zrezek (breaded schnitzel)': 'Dunajski zrezek', 'Pohan piščanec (breaded chicken)': 'Pohan piščanec', 'Palačinke (plain crêpes)': 'Palačinke (navadne)',
+  'Krof (jam doughnut)': 'Krof z marmelado', 'Skuta, pusta (low-fat quark)': 'Skuta, pusta', 'Skuta, polnomastna (full-fat quark)': 'Skuta, polnomastna', 'Toast sendvič (ham and cheese toastie)': 'Toast sendvič (šunka in sir)',
+  'Big burger with sauce (Big Mac-style)': 'Velik burger z omako (v slogu Big Mac)', 'Cheeseburger, fast food': 'Cheeseburger, hitra hrana', 'Chicken nuggets': 'Piščančji nuggeti', 'Fried chicken, breaded': 'Ocvrt piščanec, pohan',
+  'Kebab / döner in bread': 'Kebab / döner v kruhu', 'Burrito, chicken': 'Burrito s piščancem', 'Hot dog in bun': 'Hot dog v žemlji', 'Sub sandwich, turkey (15 cm)': 'Sendvič s puranom (15 cm)', 'Caesar salad with chicken': 'Cezarjeva solata s piščancem',
+  'Sushi roll, salmon or tuna': 'Suši rolica, losos ali tuna', 'Lasagna with meat': 'Lazanja z mesom', 'Spaghetti bolognese': 'Špageti bolognese', 'Protein bar': 'Proteinska ploščica', 'Protein shake, ready to drink': 'Proteinski napitek, pripravljen',
+  'High-protein pudding': 'Puding z veliko beljakovin', 'Casein protein powder': 'Kazeinske beljakovine v prahu', 'Pea / vegan protein powder': 'Grahove / veganske beljakovine v prahu', 'Mass gainer powder': 'Mass gainer v prahu',
+  'Peanut butter powder': 'Arašidovo maslo v prahu', 'Cream of rice, dry': 'Riževa krema, suha', 'Energy gel': 'Energijski gel', 'Creatine monohydrate': 'Kreatin monohidrat', 'Quick add': 'Hiter vnos',
+});
+// ---- exercise names
+Object.assign(S, {
+  'Bench press': 'Potisk s prsi', 'Incline bench press (45°)': 'Potisk s prsi na poševni klopi (45°)', 'Dumbbell bench press': 'Potisk ročk s prsi', 'Incline dumbbell press': 'Potisk ročk na poševni klopi', 'Machine chest press': 'Potisk s prsi na napravi',
+  'Dumbbell fly': 'Razpiranje z ročkami', 'Cable crossover': 'Križanje kablov', 'Pec deck': 'Pec deck', 'Dips': 'Dipsi', 'Push-up': 'Sklece', 'Deadlift': 'Mrtvi dvig', 'Barbell row': 'Veslanje z drogom', 'One-arm dumbbell row': 'Enoročno veslanje z ročko',
+  'Chest-supported row': 'Veslanje z oporo za prsi', 'T-bar row': 'Veslanje s T-drogom', 'Seated cable row': 'Veslanje na kablu sede', 'Pull-up': 'Zgibi', 'Chin-up': 'Zgibi s podprijemom', 'Close neutral-grip lat pulldown': 'Poteg na lat napravi z ozkim nevtralnim prijemom',
+  'Straight-arm pulldown': 'Poteg z iztegnjenimi rokami', 'Face pull': 'Poteg k obrazu', 'Dumbbell shrug': 'Dvigi ramen z ročkami', 'Back extension': 'Hiperekstenzija', 'Overhead press': 'Potisk nad glavo', 'Seated dumbbell shoulder press': 'Potisk ročk nad glavo sede',
+  'Machine shoulder press': 'Potisk nad glavo na napravi', 'Dumbbell lateral raise': 'Odročenje z ročkami', 'Cable lateral raise': 'Odročenje na kablu', 'Rear delt fly': 'Razpiranje za zadnje rame', 'Reverse pec deck': 'Obrnjen pec deck',
+  'One-arm reverse pec deck (side-on)': 'Enoročni obrnjen pec deck (bočno)', 'Barbell curl': 'Upogib z drogom', 'Dumbbell curl': 'Upogib z ročkami', 'Hammer curl': 'Kladivni upogib', 'Incline dumbbell curl': 'Upogib z ročkami na poševni klopi',
+  'Preacher curl': 'Upogib na Scottovi klopi', 'Cable curl': 'Upogib na kablu', 'Bayesian cable curl': 'Bayesov upogib na kablu', 'Triceps pushdown': 'Iztegovanje na kablu (pushdown)', 'Overhead cable extension': 'Iztegovanje nad glavo na kablu',
+  'Skull crusher': 'Francoski potisk', 'Cable kickback, leaning back': 'Kickback na kablu, nagnjen nazaj', 'Close-grip bench press': 'Potisk s prsi z ozkim prijemom', 'Wrist curl': 'Upogib zapestja', 'Back squat': 'Počep z drogom',
+  'Smith machine squat': 'Počep na Smithovi napravi', 'Front squat': 'Sprednji počep', 'Bulgarian split squat': 'Bolgarski počep', 'Walking lunge': 'Izpadni koraki v hoji', 'Step-up': 'Stopanje na klop', 'Romanian deadlift': 'Romunski mrtvi dvig',
+  'Dumbbell Romanian deadlift': 'Romunski mrtvi dvig z ročkami', 'Hip thrust': 'Potisk z boki', 'Hip abduction machine': 'Odmikanje kolka na napravi', 'Hip adduction machine': 'Primikanje kolka na napravi', 'Standing calf raise': 'Dvig na prste stoje',
+  'Seated calf raise': 'Dvig na prste sede', 'Plank': 'Plank', 'Hanging leg raise': 'Dvig nog v visi', 'Cable crunch': 'Trebušnjaki na kablu', 'Ab wheel rollout': 'Kotaljenje s kolescem', 'Running (10 km/h)': 'Tek (10 km/h)', 'Jogging (8 km/h)': 'Lahkoten tek (8 km/h)',
+  'Incline treadmill walk': 'Hoja v klanec na tekalni stezi', 'Brisk walk': 'Hitra hoja', 'Stationary bike, moderate': 'Sobno kolo, zmerno', 'Rowing machine, moderate': 'Veslanje na napravi, zmerno', 'Stair climber': 'Stopnice (stepper)', 'Elliptical': 'Eliptični trenažer',
+});
+// ---- serving labels
+Object.assign(S, {
+  '1 breast': '1 prsi', '1 thigh': '1 bedro', '1 slice': '1 rezina', '1 patty (113 g raw)': '1 pleskavica (113 g surova)', '1 steak': '1 zrezek', '1 fillet': '1 file', '1 can drained': '1 pločevinka, odcejeno', '1 large egg': '1 veliko jajce',
+  '1 medium egg': '1 srednje jajce', '1 large white': '1 beljak velikega jajca', '1 scoop': '1 merica', '1 container': '1 lonček', '1 cup': '1 skodelica', '1 glass (250 ml)': '1 kozarec (250 ml)', '1 oz': '1 unča (28 g)', '1 tbsp grated': '1 žlica nariban',
+  '1 tbsp': '1 žlica', '1 pat': '1 košček', '1/2 cup': '1/2 skodelice', '1 bagel': '1 bagel', '1 tortilla (8")': '1 tortilja (20 cm)', '1 cake': '1 vafelj', '1 medium': '1 srednje velik', '1 large': '1 velik', '1 cup chunks': '1 skodelica koščkov',
+  '1 cup pieces': '1 skodelica koščkov', '1 fruit': '1 sadež', '1 cup diced': '1 skodelica kock', '1 avocado': '1 avokado', '1/2 avocado': '1/2 avokada', '1 date': '1 datelj', '1 small box': '1 majhna škatlica', '1 cup chopped': '1 skodelica sesekljano',
+  '1 cucumber': '1 kumara', '1 cup shredded': '1 skodelica narezano', '1 cup sliced': '1 skodelica rezin', '1 ear': '1 storž', '1 spear': '1 špargelj', '1 oz (23 almonds)': '28 g (23 mandljev)', '2 tbsp': '2 žlici', '1 tbsp ground': '1 žlica mleto',
+  '1 tsp': '1 žlička', '1 square': '1 kocka', 'medium': 'srednja', '1 can (330 ml)': '1 pločevinka (330 ml)', '1 bottle (500 ml)': '1 steklenica (500 ml)', '1 pint (500 ml)': '1 vrček (500 ml)', '1 glass (150 ml)': '1 kozarec (150 ml)',
+  '1 drumstick': '1 krača', '1 wing': '1 perutnička', '1 can': '1 pločevinka', '1 piece': '1 kos', '2 eggs': '2 jajci', '1 ball': '1 kroglica', '1/4 cup': '1/4 skodelice', '1 tortilla': '1 tortilja', '1 pita': '1 pita', '1 croissant': '1 rogljiček',
+  '1 pancake (15 cm)': '1 palačinka (15 cm)', '1 plum': '1 sliva', '1 apricot': '1 marelica', '1/2 fruit': '1/2 sadeža', '1/2 cup seeds': '1/2 skodelice semen', '1 fig': '1 figa', '1 prune': '1 suha sliva', '1 cup cubes': '1 skodelica kock',
+  '1 stalk': '1 steblo', '1 clove': '1 strok', '1 beet': '1 pesa', '1 radish': '1 redkvica', '1 leek': '1 por', '1 pickle': '1 kumarica', '1 olive': '1 oliva', '1 oz (49 nuts)': '28 g (49 oreščkov)', '1 nut': '1 oreh', '1 small bag': '1 majhna vrečka',
+  '1 row (4 squares)': '1 vrsta (4 kocke)', '1 handful': '1 pest', '1 shot (40 ml)': '1 šilce (40 ml)', '1 can (250 ml)': '1 pločevinka (250 ml)', '1 sausage': '1 klobasa', '1 portion': '1 porcija', '1 bowl': '1 skleda', '1 schnitzel': '1 zrezek',
+  '10 pieces': '10 kosov', '1 patty': '1 pleskavica', '1 crêpe': '1 palačinka', '1 krof': '1 krof', '1 tub': '1 lonček', '1 toastie': '1 toast', '1 burger': '1 burger', '6 pieces': '6 kosov', '9 pieces': '9 kosov', '1 kebab': '1 kebab',
+  '1 burrito': '1 burrito', '1 hot dog': '1 hot dog', '1 sub': '1 sendvič', '8 pieces': '8 kosov', '1 plate': '1 krožnik', '1 bar': '1 ploščica', '1 bottle (330 ml)': '1 steklenica (330 ml)', '1 serving': '1 porcija', '1 gel': '1 gel', '100 g': '100 g',
+});
+
+const tn = s => S[s] ?? s;                                  // translate a name if we know it
+const list = s => s.split(', ').map(tn).join(', ');
+const N = '([\\d\\u202f,.]+)';
+const SN = '([+\\-−±]?[\\d\\u202f,.]+)';
+const P = [
+  [new RegExp(`^${N} g left$`), (_, n) => `${n} g še ostane`], [new RegExp(`^${N} g over$`), (_, n) => `${n} g preveč`],
+  [new RegExp(`^${N} of ${N} kcal$`), (_, a, b) => `${a} od ${b} kcal`], [new RegExp(`^Fiber ${N} g$`), (_, n) => `Vlaknine ${n} g`],
+  [new RegExp(`^Added ${N} kcal$`), (_, n) => `Dodano ${n} kcal`], [new RegExp(`^Avg ${N} kcal$`), (_, n) => `Povp. ${n} kcal`],
+  [new RegExp(`^${N} kcal per 100 g$`), (_, n) => `${n} kcal na 100 g`], [/^Search “(.+)” online$/, (_, q) => `Išči »${q}« na spletu`],
+  [/^Copied (\d+) items from (.+)$/, (_, n, d) => `Kopirano ${n} ${pl(n, 'vnos', 'vnosa', 'vnosi', 'vnosov')} iz dneva: ${tn(d)}`],
+  [/^(.+) \(([\d.,]+) g\)$/, (_, l, g) => S[l] ? `${S[l]} (${g} g)` : null], [/^([\d.,]+) × (.+)$/, (_, n, l) => `${n} × ${tn(l)}`],
+  [/^Training \+(.+)$/, (_, n) => `Trening +${n}`], [/^Rest day −(.+)$/, (_, n) => `Dan počitka −${n}`],
+  [/^Weight \((kg|lb)\)$/, (_, u) => `Teža (${u})`], [/^Current weight \((kg|lb)\)$/, (_, u) => `Trenutna teža (${u})`], [/^Goal weight \((kg|lb), optional\)$/, (_, u) => `Ciljna teža (${u}, neobvezno)`],
+  [/^Weight (kg|lb)$/, (_, u) => `Teža ${u}`], [/^e1RM (kg|lb)$/, (_, u) => `e1RM ${u}`],
+  [new RegExp(`^Started at ${N} kcal from your profile\\. (.*)$`), (_, n, rest) => `Začetek pri ${n} kcal iz profila. ` + (rest.startsWith('Keep logging') ? 'Še naprej vnašaj hrano in težo — po približno dveh tednih podatkov ocena temelji na tvojem pravem vnosu in spremembi teže.' : rest.replace(/^Now based on (\d+) days of your own intake and weight data\.$/, (__, d) => `Zdaj temelji na ${d} ${pl(d, 'dnevu', 'dneh', 'dneh', 'dneh')} tvojih podatkov o vnosu in teži.`))],
+  [/^Each day Kalibra compares the calories you logged over the last 4 weeks with how your weight changed\. 1 kg of body-weight change ≈ 7,700 kcal, so the difference reveals what you really burn\. That number moves gradually to ignore water swings\. At each weekly check-in your calories are set to expenditure (minus|plus|±) your goal rate, and macros follow your diet style\.$/,
+    (_, op) => `Kalibra vsak dan primerja kalorije, ki si jih vnesel v zadnjih 4 tednih, s spremembo teže. 1 kg spremembe teže ≈ 7.700 kcal, zato razlika pokaže, koliko res porabiš. Številka se spreminja postopoma, da ne upošteva nihanj vode. Ob vsakem tedenskem pregledu so kalorije nastavljene na porabo ${op === 'minus' ? 'minus' : op === 'plus' ? 'plus' : '±'} ciljni tempo, makrohranila pa sledijo načinu prehrane.`],
+  [/^Lose (.+)% \/ week$/, (_, r) => `Hujšanje ${r} % / teden`], [/^Gain (.+)% \/ week$/, (_, r) => `Pridobivanje ${r} % / teden`], [/^Lean bulk \+(.+)% \/ month$/, (_, r) => `Čisti bulk +${r} % / mesec`],
+  [new RegExp(`^${SN} (kg|lb) \\/ week$`), (_, n, u) => `${n} ${u} / teden`], [new RegExp(`^≈ ${N} (kg|lb) per (week|month)$`), (_, n, u, p) => `≈ ${n} ${u} na ${p === 'week' ? 'teden' : 'mesec'}`],
+  [new RegExp(`^≈ ${N} (kg|lb) per month\\. (.*)$`), (_, n, u, rest) => `≈ ${n} ${u} na mesec. ${tn(rest)}`],
+  [new RegExp(`^≈ ${N} (kg|lb) per week · ${N} kcal\\/day (deficit|surplus)$`), (_, n, u, k, t) => `≈ ${n} ${u} na teden · ${k} kcal/dan ${t === 'deficit' ? 'primanjkljaja' : 'presežka'}`],
+  [/^(.+)% per week$/, (_, r) => `${r} % na teden`],
+  [new RegExp(`^\\+(.+)% \\/ month · ${N} (kg|lb)$`), (_, r, n, u) => `+${r} % / mesec · ${n} ${u}`],
+  [new RegExp(`^Expenditure ${N}$`), (_, n) => `Poraba ${n}`], [new RegExp(`^trend ${N} (kg|lb)$`), (_, n, u) => `trend ${n} ${u}`],
+  [/^P(\d+) C(\d+) F(\d+)$/, (_, p, c, f) => `B${p} H${c} M${f}`], [/^P ([\d.,]+)$/, (_, n) => `B ${n}`], [/^C ([\d.,]+)$/, (_, n) => `H ${n}`], [/^F ([\d.,]+)$/, (_, n) => `M ${n}`],
+  [/^new daily target · (.+) kcal vs\. last week$/, (_, n) => `nov dnevni cilj · ${n} kcal glede na prejšnji teden`], [/^\((\d+)\/7 days logged\)$/, (_, n) => `(vnesenih ${n}/7 dni)`],
+  [new RegExp(`^Maintenance ${N} kcal (measured from your logs|estimated from body weight) \\+ (.+) % surplus\\.$`), (_, n, how, s) => `Vzdrževanje ${n} kcal (${how.startsWith('measured') ? 'izmerjeno iz tvojih vnosov' : 'ocenjeno iz telesne teže'}) + ${s} % presežka.`],
+  [/^Your trend changed (.+) this week against a target of (.+)\. Right on pace, so calories stay the same\.$/, (_, a, b) => `Trend se je ta teden spremenil za ${a}, cilj je bil ${b}. Točno po načrtu, zato kalorije ostanejo enake.`],
+  [/^Your trend changed (.+) this week, slower than the target of (.+)\. Calories go up (\d+) kcal( \(the most allowed in one week\))?\.$/, (_, a, b, n, m) => `Trend se je ta teden spremenil za ${a}, počasneje od cilja ${b}. Kalorije se zvišajo za ${n} kcal${m ? ' (največ dovoljeno v enem tednu)' : ''}.`],
+  [/^Your trend changed (.+) this week, faster than the target of (.+)\. Faster gain mostly adds fat, so calories go down (\d+) kcal( \(the most allowed in one week\))?\.$/, (_, a, b, n, m) => `Trend se je ta teden spremenil za ${a}, hitreje od cilja ${b}. Hitrejše pridobivanje dodaja predvsem maščobo, zato se kalorije znižajo za ${n} kcal${m ? ' (največ dovoljeno v enem tednu)' : ''}.`],
+  [/^Estimated as (\d+) lb × (\d+) for your activity level\. After (\d+) days of logs it switches to your measured number \((\d+)\/(\d+) so far\)\.$/, (_, w, m, d, a, b) => `Ocenjeno kot ${w} lb × ${m} za tvojo raven aktivnosti (lb = 0,45 kg). Po ${d} dneh vnosov preide na izmerjeno vrednost (zaenkrat ${a}/${b}).`],
+  [/^Measured from (\d+) days of your logged intake and trend weight\. It rises as you gain, so it’s re-measured every week\.$/, (_, d) => `Izmerjeno iz ${d} dni tvojih vnosov in trendne teže. S pridobivanjem raste, zato se meri vsak teden znova.`],
+  [/^Maintenance plus a (.+) % surplus\. Enough to fuel muscle growth without the extra fat of a dirty bulk\. Weekly check-ins fine-tune it by up to ±(\d+) kcal\.$/, (_, s, n) => `Vzdrževanje plus ${s} % presežka. Dovolj za rast mišic brez odvečne maščobe »umazanega« bulka. Tedenski pregledi ga natančneje nastavijo za največ ±${n} kcal.`],
+  [/^(.+) g per lb of body weight\. 0\.7–1 g\/lb \(1\.6–2\.2 g\/kg\) supports muscle growth\.$/, (_, n) => `${n} g na lb (0,45 kg) telesne teže. 0,7–1 g/lb (1,6–2,2 g/kg) podpira rast mišic.`],
+  [/^(\d+) % of calories\. Enough to support hormones; more than ~30 % is stored as fat more easily than carbs\.$/, (_, n) => `${n} % kalorij. Dovolj za hormone; nad ~30 % se lažje shrani kot maščoba kot OH.`],
+  [/^(.+) g\/lb protein$/, (_, n) => `${n} g/lb beljakovin`], [/^(\d+)% fat$/, (_, n) => `${n} % maščob`],
+  [/^(\d+) workouts?$/, (_, n) => `${n} ${pl(n, 'trening', 'treninga', 'treningi', 'treningov')}`], [/^workouts$/, () => 'treningi'],
+  [/^(\d+) sets?$/, (_, n) => `${n} ${pl(n, 'serija', 'seriji', 'serije', 'serij')}`], [/^(\d+) sets? done$/, (_, n) => `${n} ${pl(n, 'serija', 'seriji', 'serije', 'serij')} opravljenih`],
+  [/^started (\d\d?:\d\d)$/, (_, t) => `začeto ob ${t}`], [/^(\d+) min$/, (_, n) => `${n} min`], [/^≈(\d+) kcal$/, (_, n) => `≈${n} kcal`],
+  [/^Target (\d+)–(\d+)$/, (_, a, b) => `Cilj ${a}–${b}`], [/^(\d+)–(\d+) reps$/, (_, a, b) => `${a}–${b} ponovitev`], [/^rest (.+)$/, (_, t) => `počitek ${t}`],
+  [/^(\d+) days a week$/, (_, n) => `${n} dni na teden`], [/^(\d+)–(\d+) days a week$/, (_, a, b) => `${a}–${b} dni na teden`],
+  [/^First time — choose a load you could lift (\d+)–(\d+) times with about (\d+) reps left$/, (_, a, b, r) => `Prvič — izberi težo, ki jo lahko dvigneš ${a}–${b}-krat in ti ostaneta še približno ${r} ponovitvi`],
+  [/^Top of range hit — up to (.+)$/, (_, w) => `Vrh razpona dosežen — na ${w}`], [/^Not at your gym — needs (.+)\. Swap it$/, (_, e) => `Ni v tvojem fitnesu — potrebuje: ${list(e)}. Zamenjaj`],
+  [/^Not at your gym — needs (.+)\.$/, (_, e) => `Ni v tvojem fitnesu — potrebuje: ${list(e)}.`], [/^Not at (.+) — needs (.+)$/, (_, g, e) => `Ni v fitnesu ${g} — potrebuje: ${list(e)}`], [/^Not at (.+)$/, (_, g) => `Ni v fitnesu ${g}`],
+  [/^Swap (.+)$/, (_, x) => `Zamenjaj: ${tn(x)}`], [/^(.+) doesn’t feel good — hide it$/, (_, x) => `${tn(x)} ni prijetna — skrij jo`], [/^Only show what (.+) has$/, (_, g) => `Pokaži le, kar ima ${g}`],
+  [/^Hidden because they didn’t feel good: (.+)\.$/, (_, x) => `Skrito, ker ni bilo prijetno: ${list(x)}.`], [/^Edit (.+)$/, (_, x) => `Uredi ${tn(x)}`],
+  [/^Top pick · (.+)$/, (_, x) => `Najboljša izbira · ${tn(x)}`], [/^also (.+)$/, (_, x) => `tudi ${list(x)}`], [/^Equipment at (.+)$/, (_, g) => `Oprema v fitnesu ${g}`],
+  [/^(\d+) of (\d+) exercises possible with this equipment\.(.*)$/, (_, a, b, rest) => `S to opremo je mogočih ${a} od ${b} vaj.` + (rest ? ' Javni viri ne navajajo vseh naprav, zato ob naslednjem obisku preveri, kaj vidiš — ali vprašaj na recepciji.' : '')],
+  [/^(\d+) of (\d+) equipment types$/, (_, a, b) => `${a} od ${b} vrst opreme`], [/^exercises adapt to it$/, () => 'vaje se mu prilagodijo'], [/^(.+) machines$/, (_, b) => `naprave ${b}`],
+  [/^(.+) saved$/, (_, g) => `${g} shranjen`], [/^(.+) added$/, (_, p) => `${tn(p)} dodan`],
+  [/^(.+) added — (\d+) exercises? swapped to fit (.+)$/, (_, p, n, g) => `${tn(p)} dodan — ${n} ${pl(n, 'vaja zamenjana', 'vaji zamenjani', 'vaje zamenjane', 'vaj zamenjanih')} za fitnes ${g}`],
+  [/^New personal record on (.+)$/, (_, x) => `Nov osebni rekord: ${tn(x)}`], [/^(.+) vs last time — that’s progress$/, (_, g) => `${gainTr(g)} glede na prejšnjič — to je napredek`],
+  [/^Looking up (.+)…$/, (_, c) => `Iščem ${c} …`], [/^Check-in day set to (.+)$/, (_, d) => `Dan pregleda: ${tn(d)}`],
+  [/^You have$/, () => 'Danes imaš še'], [/^(\d+) g of protein$/, (_, n) => `${n} g beljakovin`], [/^left today\. A meal with 30–50 g in the next few hours supports recovery\.$/, () => 'na voljo. Obrok s 30–50 g v naslednjih urah podpira regeneracijo.'],
+  [/^You have already hit your protein target today — nice\. Today counts as a training day, so your target includes$/, () => 'Danes si že dosegel cilj beljakovin — odlično. Danes je dan treninga, zato cilj vključuje'],
+  [/^Today counts as a training day, so your target includes$/, () => 'Danes je dan treninga, zato cilj vključuje'], [/^extra carbs\.$/, () => 'dodatnih OH.'],
+  [/^\+(\d[\d ,.]*) kcal$/, (_, n) => `+${n} kcal`],
+  [/^The (\d+) kcal estimate is for reference only\. Your expenditure is measured from your intake and weight, so training is already counted and not added twice\.$/, (_, n) => `Ocena ${n} kcal je le informativna. Porabo meri tvoj vnos in teža, zato je trening že upoštevan in se ne šteje dvakrat.`],
+  [/^You beat last time on$/, () => 'Izboljšal si prejšnji rezultat:'],
+  [/^\. Even one extra rep is progressive overload\.$/, () => '. Že ena ponovitev več je progresija.'], [/^(\d+) new personal records?\.$/, (_, n) => `${n} ${pl(n, 'nov osebni rekord', 'nova osebna rekorda', 'novi osebni rekordi', 'novih osebnih rekordov')}.`],
+  [/^Possible fake overload on (.+): reps went up on a day you marked your technique as changed\. Keep form identical week to week so extra reps mean extra muscle\.$/, (_, x) => `Možna lažna progresija pri: ${list(x)}. Ponovitve so se povečale na dan, ko si označil spremenjeno tehniko. Izvedba naj bo vsak teden enaka, da dodatne ponovitve pomenijo dodatne mišice.`],
+  [/^Set (\d+)$/, (_, n) => `Serija ${n}`],
+  [/^Every (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/, (_, d) => ({ Monday: 'Vsak ponedeljek', Tuesday: 'Vsak torek', Wednesday: 'Vsako sredo', Thursday: 'Vsak četrtek', Friday: 'Vsak petek', Saturday: 'Vsako soboto', Sunday: 'Vsako nedeljo' })[d]],
+  [/^Today · (\d+) min$/, (_, n) => `Danes · ${n} min`], [/^\+(\d+) more$/, (_, n) => `+${n} več`],
+];
+function gainTr(g) { return g.replace(/(\d+) reps?$/, (_, n) => `${n} pon.`); }
+
+function seg(s) {
+  if (S[s] != null) return S[s];
+  for (const [re, f] of P) { const m = s.match(re); if (m) { const r = f(...m); if (r != null) return r; } }
+  const m = s.match(/^(.+) \+(\d+)$/); if (m && S[m[1]]) return `${S[m[1]]} +${m[2]}`;   // "Exercise +2"
+  if (s.includes(', ')) { const parts = s.split(', '); if (parts.every(x => S[x] != null)) return parts.map(x => S[x]).join(', '); }
+  return null;
+}
+function tr(s) {
+  let r = seg(s); if (r != null) return r;
+  if (s.includes(' · ')) { let any = false; const out = s.split(' · ').map(p => { const t = seg(p); if (t != null) { any = true; return t; } return p; }); if (any) return out.join(' · '); }
+  return null;
+}
+const dec = s => s.replace(/(\d)\.(\d)/g, '$1,$2');
+let on = false;
+const ATTRS = ['placeholder', 'aria-label', 'title', 'data-gain'];
+function text(n) {
+  const v = n.nodeValue; if (!v || !/[A-Za-z0-9]/.test(v)) return;
+  const k = v.replace(/[ \t\n\r]+/g, ' ').trim();
+  const t = tr(k);
+  const out = dec(t ?? k);
+  if (out !== k) n.nodeValue = (v.match(/^\s*/)[0]) + out + (v.match(/\s*$/)[0]);
+}
+function el(n) {
+  if (n.tagName === 'SCRIPT' || n.tagName === 'STYLE') return;
+  for (const a of ATTRS) { const v = n.getAttribute(a); if (v) { const t = a === 'data-gain' ? gainTr(v) : (tr(v) ?? v); const o = dec(t); if (o !== v) n.setAttribute(a, o); } }
+}
+function walk(root) {
+  if (root.nodeType === 3) return text(root);
+  if (root.nodeType !== 1) return;
+  el(root);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, { acceptNode: x => x.nodeType === 1 && (x.tagName === 'SCRIPT' || x.tagName === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  let x; while ((x = w.nextNode())) x.nodeType === 3 ? text(x) : el(x);
+}
+const obs = new MutationObserver(ms => { if (!on) return; for (const m of ms) { if (m.type === 'characterData') text(m.target); else if (m.type === 'attributes') el(m.target); else m.addedNodes.forEach(walk); } });
+window.KalI18n = {
+  set(lang) {
+    const want = lang === 'sl';
+    document.documentElement.lang = want ? 'sl' : 'en';
+    if (want && !on) { on = true; obs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS }); walk(document.body); }
+    if (!want && on) { on = false; obs.disconnect(); }
+  },
+  t: s => on ? dec(tr(s) ?? s) : s,
+  get on() { return on; },
+  plural: pl,
+};
+})();
