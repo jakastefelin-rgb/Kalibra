@@ -1,6 +1,6 @@
 // Kalibra – offline support. App files: network first, cache fallback. Fonts/CDN: cache first.
-const C = 'kalibra-v1';
-const CORE = ['./', 'index.html', 'app.js', 'foods.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png'];
+const C = 'kalibra-v2';
+const CORE = ['./', 'index.html', 'app.js', 'foods.js', 'exercises.js', 'workouts.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(CORE))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x.startsWith('kalibra') && x !== C).map(x => caches.delete(x)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

@@ -46,13 +46,18 @@ const blank = () => ({
   v: 1, profile: null, goal: null, init: null,
   weights: {}, logs: {}, incomplete: {}, custom: [], recents: [], checkins: [],
   settings: { unit: 'kg', theme: 'auto' },
+  train: blankTrain(),
 });
+function blankTrain() {
+  return { templates: [], sessions: [], active: null, custom: [], days: [], shift: 0, rest: 120 };
+}
+const K = {};
 let S = load();
 let rev = 0;
 const ui = { view: 'today', date: todayKey(), range: 90, ob: { step: 0 } };
 
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) return Object.assign(blank(), s); } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) { const o = Object.assign(blank(), s); o.train = Object.assign(blankTrain(), s.train || {}); return o; } } catch (e) {}
   return blank();
 }
 function save() { rev++; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Storage is full — export a backup'); } }
@@ -93,6 +98,14 @@ const I = {
   scale: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9a5 5 0 018 0l-3 3"/>', copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/>',
   check: '<path d="M20 6L9 17l-5-5"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>',
 };
+Object.assign(I, {
+  dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/>',
+  apple: '<path d="M12 7c-1.5-1.5-5-2-6.5 1S5 16 8 19c1.5 1.5 2.5 1 4 .5 1.5.5 2.5 1 4-.5 3-3 4-8 2.5-11S13.5 5.5 12 7z"/><path d="M12 7c0-2 1-3.5 3-4"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>', trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 6h3v2a3 3 0 01-3 3M7 6H4v2a3 3 0 003 3"/>',
+  flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2 1-3.5 2-4.5.5 1.5 1.5 2.5 2.5 2.5C11 8.5 11 5.5 12 3z"/>',
+  dots: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  play: '<path d="M7 4l13 8-13 8z"/>', minus: '<path d="M5 12h14"/>',
+});
 const icon = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
 
 let toastT;
@@ -216,10 +229,27 @@ function computeTargets(E, w) {
   if (floored) kcal = floor;
   return Object.assign({ kcal, floored }, macrosFor(kcal, w));
 }
-function targetsOn(k) {
+function baseTargetsOn(k) {
   if (S.goal.mode === 'manual') return S.goal.manual;
   let t = S.checkins[0];
   for (const c of S.checkins) if (c.date <= k) t = c;
+  return t;
+}
+// Training-day calorie shifting: training days get extra calories (as carbs) and rest days give the same
+// amount back, so the weekly total — and therefore the rate of progress — is unchanged.
+function isTrainingDay(k) {
+  const T = S.train;
+  return T.days.includes(pkey(k).getDay()) || T.sessions.some(x => x.date === k) || (T.active && T.active.date === k);
+}
+function targetsOn(k) {
+  const b = baseTargetsOn(k), T = S.train, n = T.days.length;
+  if (!T.shift || n < 1 || n > 6) return b;
+  const t = Object.assign({}, b), train = isTrainingDay(k);
+  const delta = r0(b.kcal * T.shift / 5) * 5 * (train ? 1 : -n / (7 - n));
+  t.kcal = r0(b.kcal + delta);
+  t.c = b.c + delta / 4;
+  if (t.c < 0) { t.f = Math.max(0, b.f + (t.c * 4) / 9); t.c = 0; }
+  t.c = r0(t.c); t.f = r0(t.f); t.train = train; t.delta = r0(delta);
   return t;
 }
 function nextCheckin() {
@@ -357,14 +387,39 @@ function openSheet(title, body, opts = {}) {
   scrim.onclick = closeSheet;
   requestAnimationFrame(() => { scrim.classList.add('on'); el.classList.add('on'); });
   sheetStack.push({ el, scrim, onClose: opts.onClose });
-  const f = el.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 280);
+  dragToDismiss(el, scrim);
+  const f = el.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 320);
   return el;
 }
 function closeSheet() {
   const s = sheetStack.pop(); if (!s) return;
-  s.el.classList.remove('on'); s.scrim.classList.remove('on');
-  setTimeout(() => { s.el.remove(); s.scrim.remove(); }, 280);
+  s.el.style.transform = ''; s.el.classList.remove('on'); s.scrim.classList.remove('on');
+  setTimeout(() => { s.el.remove(); s.scrim.remove(); }, 380);
   if (s.onClose) s.onClose();
+}
+// Pull a sheet down by its handle or header to close it.
+function dragToDismiss(el, scrim) {
+  let y0 = null, dy = 0, t0 = 0;
+  const zone = e => e.target.closest('.grab, .sheet-h') && !e.target.closest('button, input, select');
+  el.addEventListener('pointerdown', e => {
+    if (!zone(e)) return;
+    y0 = e.clientY; dy = 0; t0 = performance.now();
+    el.classList.add('dragging'); el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', e => {
+    if (y0 == null) return;
+    dy = Math.max(0, e.clientY - y0);
+    el.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - dy / 500));
+  });
+  const end = () => {
+    if (y0 == null) return;
+    const v = dy / Math.max(1, performance.now() - t0);
+    y0 = null; el.classList.remove('dragging'); scrim.style.opacity = '';
+    if (dy > 140 || v > 0.6) { if (sheetStack.length && sheetStack[sheetStack.length - 1].el === el) closeSheet(); }
+    else el.style.transform = '';
+  };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 }
 function closeAll() { while (sheetStack.length) closeSheet(); }
 addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
@@ -420,7 +475,7 @@ function renderOnboarding() {
     const t = computeTargets(E, p.profile.startWeight);
     S.profile = prev; S.goal = prevG;
     body = `<h1>Your starting plan</h1><p class="lead">This is an educated guess. Log consistently and the weekly check-in will correct it to your real numbers.</p>
-      <div class="card hero"><div class="big num">${fmt(t.kcal)}</div><div class="big-l">kcal per day</div>
+      <div class="hero"><div class="big num">${fmt(t.kcal)}</div><div class="big-l">kcal per day</div>
       <div class="macros">${macroStatic('Protein', t.p, 'var(--pro)')}${macroStatic('Carbs', t.c, 'var(--carb)')}${macroStatic('Fat', t.f, 'var(--fat)')}</div></div>
       <div class="card"><div class="kv"><span>Estimated expenditure</span><b>${fmt(E)} kcal</b></div>
       <div class="kv"><span>Goal</span><b>${goalLabel(p.goal)}</b></div>
@@ -472,19 +527,100 @@ function goalLabel(g) {
 }
 
 // ---------- main views ----------
+const ORDER = ['today', 'train', 'progress', 'plan', 'profile'];
+const VIEWS = {};
+queueMicrotask(() => Object.assign(VIEWS, { today: viewToday, progress: viewProgress, plan: viewPlan, profile: viewProfile }));
+const TITLES = { train: 'Train', progress: 'Progress', plan: 'Plan', profile: 'You' };
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function ensureShell() {
+  if ($('#main')) return;
+  const tab = (id, ic, l) => `<button class="tab" data-act="view" data-v="${id}">${icon(ic)}<span>${l}</span></button>`;
+  $('#app').innerHTML = `<header class="top" id="top"></header><main class="wrap" id="main"></main>
+    <nav class="tabbar" aria-label="Main"><div class="tabbar-in"><i class="tab-ind" aria-hidden="true"></i>
+      ${tab('today', 'today', 'Today')}${tab('train', 'dumbbell', 'Train')}
+      <button class="fab" data-act="fab" aria-label="Add" aria-expanded="false">${icon('plus')}</button>
+      ${tab('progress', 'chart', 'Progress')}${tab('plan', 'plan', 'Plan')}</div></nav>`;
+}
+function header(v) {
+  const me = `<button class="icon-btn" data-act="view" data-v="profile" aria-label="Profile and settings">${icon('user')}</button>`;
+  if (v === 'today') return `<div class="top-in"><h1 class="num">${esc(niceDate(ui.date, true))}</h1><div class="datenav"><button data-act="day" data-n="-1" aria-label="Previous day">${icon('left')}</button><span>${pkey(ui.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><button data-act="day" data-n="1" aria-label="Next day">${icon('right')}</button></div>${me}</div>`;
+  return `<div class="top-in"><h1>${TITLES[v]}</h1>${v === 'profile' ? '' : me}</div>`;
+}
 function render() {
   applyTheme();
   if (!S.profile) { renderOnboarding(); return; }
+  ensureShell();
   const v = ui.view;
-  const title = { today: '', progress: 'Progress', plan: 'Plan', profile: 'You' }[v];
-  const head = v === 'today'
-    ? `<h1 class="num">${esc(niceDate(ui.date, true))}</h1><div class="datenav"><button data-act="day" data-n="-1" aria-label="Previous day">${icon('left')}</button><span>${pkey(ui.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><button data-act="day" data-n="1" aria-label="Next day">${icon('right')}</button></div>`
-    : `<h1>${title}</h1>`;
-  const tab = (id, ic, l) => `<button class="tab" data-act="view" data-v="${id}" ${v === id ? 'aria-current="page"' : ''}>${icon(ic)}${l}</button>`;
-  $('#app').innerHTML = `<header class="top"><div class="top-in">${head}</div></header>
-    <main class="wrap">${({ today: viewToday, progress: viewProgress, plan: viewPlan, profile: viewProfile })[v]()}</main>
-    <nav class="tabbar" aria-label="Main"><div class="tabbar-in">${tab('today', 'today', 'Today')}${tab('progress', 'chart', 'Progress')}
-      <button class="fab" data-act="food" aria-label="Log food">${icon('plus')}</button>${tab('plan', 'plan', 'Plan')}${tab('profile', 'user', 'You')}</div></nav>`;
+  $('#top').innerHTML = header(v);
+  const main = $('#main'), sig = v + '|' + (v === 'today' ? ui.date : '');
+  main.classList.toggle('stagger', main.dataset.sig !== sig);
+  main.dataset.sig = sig;
+  main.innerHTML = VIEWS[v]();
+  document.querySelectorAll('.tab').forEach(b => b.dataset.v === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  const slot = { today: 0, train: 1, progress: 3, plan: 4 }[v];
+  const ind = $('.tab-ind');
+  ind.style.opacity = slot == null ? '0' : '1';
+  if (slot != null) ind.style.setProperty('--i', slot);
+  animateIn($('#main'));
+}
+// Animated navigation between views (View Transitions API, with a CSS fallback).
+function transition(fn, dir) {
+  document.documentElement.dataset.dir = dir < 0 ? 'back' : 'fwd';
+  if (document.startViewTransition && !reduceMotion()) { document.startViewTransition(fn); return; }
+  fn();
+  const m = $('#main'); if (!m || m.classList.contains('stagger')) return;
+  m.classList.remove('enter'); void m.offsetWidth; m.classList.add('enter');
+}
+function go(view) {
+  if (view === ui.view) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const dir = ORDER.indexOf(view) >= ORDER.indexOf(ui.view) ? 1 : -1;
+  transition(() => { ui.view = view; render(); scrollTo(0, 0); }, dir);
+}
+// Count-up numbers and growing bars. Values animate from what was last shown, so updates feel continuous.
+const shown = {};
+function animateIn(root) {
+  const still = reduceMotion();
+  root.querySelectorAll('[data-count]').forEach(el => {
+    const key = el.dataset.k, to = +el.dataset.count, dec = +(el.dataset.dec || 0);
+    const from = key in shown ? shown[key] : (still ? to : 0);
+    shown[key] = to;
+    const out = v => dec ? v.toFixed(dec) : fmt(v);
+    if (from === to || still) { el.textContent = out(to); return; }
+    const t0 = performance.now(), D = 750;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - p, 4);
+      el.textContent = out(from + (to - from) * e);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    el.textContent = out(from); requestAnimationFrame(step);
+  });
+  root.querySelectorAll('[data-w]').forEach(el => {
+    const key = el.dataset.k, to = +el.dataset.w;
+    const from = key in shown ? shown[key] : 0;
+    shown[key] = to;
+    if (still) { el.style.width = to + '%'; return; }
+    el.style.transition = 'none'; el.style.width = from + '%'; void el.offsetWidth;
+    el.style.transition = ''; requestAnimationFrame(() => { el.style.width = to + '%'; });
+  });
+}
+const cnt = (k, v, dec = 0) => `<span data-count="${v}" data-k="${k}" data-dec="${dec}">${dec ? (+v).toFixed(dec) : fmt(v)}</span>`;
+const barW = (k, pct, color, cls = '') => `<i class="${cls}" data-w="${clamp(pct, 0, 100)}" data-k="${k}" style="${color ? 'background:' + color : ''}"></i>`;
+
+// Speed-dial menu on the + button.
+function toggleFab(open) {
+  const fab = $('.fab'); if (!fab) return;
+  open = open ?? fab.getAttribute('aria-expanded') !== 'true';
+  fab.setAttribute('aria-expanded', String(open));
+  let m = $('#dial');
+  if (!open) { if (m) { m.classList.remove('on'); setTimeout(() => m.remove(), 260); } return; }
+  const act = S.train.active;
+  m = document.createElement('div'); m.id = 'dial'; m.className = 'dial';
+  m.innerHTML = `<div class="dial-scrim" data-act="fab-close"></div><div class="dial-list">
+    <button class="dial-btn" data-act="dial" data-v="food" style="--d:2">${icon('apple')}<span>Log food</span></button>
+    <button class="dial-btn" data-act="dial" data-v="weight" style="--d:1">${icon('scale')}<span>Log weight</span></button>
+    <button class="dial-btn" data-act="dial" data-v="workout" style="--d:0">${icon('dumbbell')}<span>${act ? 'Resume workout' : 'Start workout'}</span></button></div>`;
+  document.body.append(m);
+  requestAnimationFrame(() => m.classList.add('on'));
 }
 
 function viewToday() {
@@ -493,33 +629,35 @@ function viewToday() {
   const left = t.kcal - tot.kcal, over = left < 0;
   const pct = x => clamp(x / Math.max(t.kcal, 1) * 100, 0, 100);
   const pw = pct(tot.p * 4), cw = Math.min(pct(tot.c * 4), 100 - pw), fw = Math.min(pct(tot.f * 9), 100 - pw - cw);
-  const mac = (l, eaten, target, c) => {
+  const mac = (key, l, eaten, target, c) => {
     const rem = target - eaten;
     return `<div class="macro"><div class="lbl"><i class="dot" style="background:${c}"></i>${l}</div>
-      <div class="val num">${r0(eaten)}<small> / ${target} g</small></div>
-      <div class="bar"><i style="width:${clamp(eaten / Math.max(target, 1) * 100, 0, 100)}%;background:${c}"></i></div>
+      <div class="val num">${cnt('m' + key, r0(eaten))}<small> / ${target} g</small></div>
+      <div class="bar">${barW('b' + key, eaten / Math.max(target, 1) * 100, c)}</div>
       <div class="sub">${rem >= 0 ? r0(rem) + ' g left' : r0(-rem) + ' g over'}</div></div>`;
   };
   const items = (S.logs[k] || []).slice().sort((a, b) => a.t - b.t);
   const scale = S.weights[k];
   const isToday = k === todayKey();
   let banner = '';
-  if (isToday && checkinDue()) banner = `<button class="banner" data-act="checkin">${icon('check')}<div><b>Your weekly check-in is ready</b><span>Review last week and update your targets</span></div></button>`;
-  else if (isToday && scale == null) banner = `<button class="banner" data-act="weight" style="background:var(--surface);color:var(--ink);box-shadow:var(--shadow)">${icon('scale')}<div><b>Log this morning's weight</b><span class="mute">Daily weigh-ins make your expenditure estimate sharper</span></div></button>`;
+  if (isToday && checkinDue()) banner = `<button class="banner" data-act="checkin">${icon('check')}<div><b>Your weekly check-in is ready</b><span>Review last week and update your targets</span></div>${icon('right')}</button>`;
+  else if (isToday && scale == null) banner = `<button class="banner soft" data-act="weight">${icon('scale')}<div><b>Log this morning's weight</b><span>Daily weigh-ins make your expenditure estimate sharper</span></div>${icon('right')}</button>`;
+  const dayTag = t.delta ? `<span class="tag ${t.train ? 'on' : ''}">${t.train ? icon('dumbbell') + 'Training +' + fmt(t.delta) : 'Rest day −' + fmt(-t.delta)}</span>` : '';
   return `${banner}
-  <section class="card hero" aria-label="Calories">
+  <section class="hero" aria-label="Calories">
     <div class="hero-row">
-      <div><div class="big num ${over ? 'over' : ''}">${fmt(Math.abs(left))}</div><div class="big-l">${over ? 'kcal over target' : 'kcal left'}</div></div>
-      <div class="hero-side"><div class="mute">Eaten <b class="num" style="color:var(--ink)">${fmt(tot.kcal)}</b></div><div class="mute">Target <b class="num" style="color:var(--ink)">${fmt(t.kcal)}</b></div></div>
+      <div><div class="big num ${over ? 'over' : ''}">${cnt('left', Math.abs(left))}</div><div class="big-l">${over ? 'kcal over target' : 'kcal left today'}</div></div>
+      <div class="hero-side">${dayTag}<div>Eaten <b class="num">${cnt('eaten', tot.kcal)}</b></div><div>Target <b class="num">${fmt(t.kcal)}</b></div></div>
     </div>
-    <div class="gauge" role="img" aria-label="${fmt(tot.kcal)} of ${fmt(t.kcal)} kcal"><i class="g-p" style="width:${pw}%"></i><i class="g-c" style="width:${cw}%"></i><i class="g-f" style="width:${fw}%"></i></div>
-    <div class="macros">${mac('Protein', tot.p, t.p, 'var(--pro)')}${mac('Carbs', tot.c, t.c, 'var(--carb)')}${mac('Fat', tot.f, t.f, 'var(--fat)')}</div>
+    <div class="gauge" role="img" aria-label="${fmt(tot.kcal)} of ${fmt(t.kcal)} kcal">${barW('gp', pw, '', 'g-p')}${barW('gc', cw, '', 'g-c')}${barW('gf', fw, '', 'g-f')}</div>
+    <div class="macros">${mac('p', 'Protein', tot.p, t.p, 'var(--pro)')}${mac('c', 'Carbs', tot.c, t.c, 'var(--carb)')}${mac('f', 'Fat', tot.f, t.f, 'var(--fat)')}</div>
   </section>
   <div class="stats">
-    <button class="stat" data-act="weight"><div class="k">Scale</div><div class="v num">${scale != null ? wFmt(scale) : '+'}<small> ${scale != null ? unit() : 'log'}</small></div></button>
-    <button class="stat" data-act="view" data-v="progress"><div class="k">Trend</div><div class="v num">${wFmt(d.trend)}<small> ${unit()}</small></div></button>
-    <button class="stat" data-act="view" data-v="progress"><div class="k">Expenditure</div><div class="v num">${fmt(d.E)}<small> kcal</small></div></button>
+    <button class="stat" data-act="weight"><div class="k">Scale</div><div class="v num">${scale != null ? cnt('scale', wDisp(scale), 1) : '+'}<small> ${scale != null ? unit() : 'log'}</small></div></button>
+    <button class="stat" data-act="view" data-v="progress"><div class="k">Trend</div><div class="v num">${cnt('trend', wDisp(d.trend), 1)}<small> ${unit()}</small></div></button>
+    <button class="stat" data-act="view" data-v="progress"><div class="k">Expenditure</div><div class="v num">${cnt('exp', r0(d.E))}<small> kcal</small></div></button>
   </div>
+  ${K.trainingCard ? K.trainingCard(k) : ''}
   <section class="card">
     <div class="card-h"><h2>Food log</h2><span class="mute num" style="font-size:13px">Fiber ${r0(tot.fib)} g</span></div>
     ${items.length ? items.map(e => `<button class="entry" data-act="edit-entry" data-id="${e.id}">
@@ -585,18 +723,28 @@ function viewProgress() {
     <div class="legend"><span><i class="dot" style="background:var(--brand)"></i>Logged</span><span><i class="dot" style="background:var(--line)"></i>Incomplete</span><span><i class="dot" style="background:var(--fat)"></i>Target</span><span><i class="dot" style="background:var(--ink)"></i>Expenditure</span></div></section>
   <section class="card"><div class="card-h"><h2>Weigh-ins</h2></div>
     ${recentW.length ? recentW.map(k => `<button class="entry" data-act="weight" data-k="${k}"><span class="n"><b>${esc(niceDate(k, true))}</b></span><span class="k num">${wFmt(S.weights[k])} ${unit()}</span></button>`).join('') : '<div class="empty">No weigh-ins yet.</div>'}
-  </section>`;
+  </section>`.replace('<section class="card"><div class="card-h"><h2>Expenditure', (K.strengthCard ? K.strengthCard(ui.range) : '') + '<section class="card"><div class="card-h"><h2>Expenditure');
 }
 
 function viewPlan() {
-  const g = S.goal, cur = targetsOn(todayKey()), L = latest();
+  const g = S.goal, cur = baseTargetsOn(todayKey()), L = latest(), T = S.train;
+  const n = T.days.length, sh = T.shift;
+  const tDelta = r0(cur.kcal * sh / 5) * 5, rDelta = n && n < 7 ? r0(tDelta * n / (7 - n)) : 0;
+  const order = [1, 2, 3, 4, 5, 6, 0];
   const hist = S.checkins.slice().reverse();
   const gw = g.target && g.type !== 'maintain' ? g.target : null;
   const eta = gw && g.type !== 'maintain' ? Math.abs((gw - L.trend) / goalRateKgWeek(L.trend)) : null;
-  return `<section class="card hero">
+  return `<section class="hero">
     <div class="card-h"><h2>Daily targets</h2><a class="link" data-act="goal">Edit</a></div>
     <div class="big num">${fmt(cur.kcal)}</div><div class="big-l">kcal per day</div>
     <div class="macros">${macroStatic('Protein', cur.p, 'var(--pro)')}${macroStatic('Carbs', cur.c, 'var(--carb)')}${macroStatic('Fat', cur.f, 'var(--fat)')}</div>
+  </section>
+  <section class="card"><div class="card-h"><h2>Training-day calories</h2></div>
+    <p class="note" style="margin-top:0">Eat more on the days you train and a little less on rest days. Your weekly total stays the same, so your rate of progress doesn't change. The extra calories go to carbs to fuel your sessions.</p>
+    <div class="seg" style="margin-top:12px">${[[0, 'Off'], [0.1, '+10%'], [0.15, '+15%'], [0.2, '+20%']].map(([v, l]) => `<button data-act="shift" data-v="${v}" aria-pressed="${sh === v}">${l}</button>`).join('')}</div>
+    <div class="field"><span>Training days</span><div class="days">${order.map(i => `<button data-act="tday" data-v="${i}" aria-pressed="${T.days.includes(i)}" aria-label="${DAYS[i]}">${DAYS[i][0]}</button>`).join('')}</div></div>
+    ${sh && n && n < 7 ? `<div class="split"><div><span>Training day</span><b class="num">${fmt(cur.kcal + tDelta)}</b></div><div><span>Rest day</span><b class="num">${fmt(cur.kcal - rDelta)}</b></div><div><span>Weekly total</span><b class="num">${fmt(cur.kcal * 7)}</b></div></div>`
+      : sh ? '<p class="note">Pick the days you usually train to turn this on.</p>' : ''}
   </section>
   <section class="card">
     <div class="kv"><span>Program</span><b>${g.mode === 'manual' ? 'Manual' : 'Coached'}</b></div>
@@ -878,7 +1026,7 @@ function openCheckin() {
   const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
   const exp = goalRateKgWeek(c.trend);
   const el = openSheet('Weekly check-in', `
-    <div class="card hero" style="margin-top:4px"><div class="big num">${fmt(c.kcal)}</div><div class="big-l">new daily target · ${sign(diff)} kcal vs. last week</div>
+    <div class="hero" style="margin-top:4px"><div class="big num">${fmt(c.kcal)}</div><div class="big-l">new daily target · ${sign(diff)} kcal vs. last week</div>
       <div class="macros">${macroStatic('Protein', c.p, 'var(--pro)')}${macroStatic('Carbs', c.c, 'var(--carb)')}${macroStatic('Fat', c.f, 'var(--fat)')}</div></div>
     <div class="card">
       <div class="kv"><span>Expenditure</span><b>${fmt(c.E)} kcal <span class="mute" style="font-weight:500">(${sign(c.E - p.E)})</span></b></div>
@@ -966,8 +1114,19 @@ function openEditProfile() {
 // ---------- actions ----------
 const actions = {
   close: closeSheet,
-  view: el => { ui.view = el.dataset.v; if (ui.view === 'today') ui.date = ui.date || todayKey(); render(); scrollTo(0, 0); },
-  day: el => { ui.date = addDays(ui.date, +el.dataset.n); render(); },
+  view: el => { toggleFab(false); go(el.dataset.v); },
+  day: el => { const n = +el.dataset.n; transition(() => { ui.date = addDays(ui.date, n); render(); }, n); },
+  fab: () => toggleFab(),
+  'fab-close': () => toggleFab(false),
+  dial: el => {
+    toggleFab(false);
+    const v = el.dataset.v;
+    if (v === 'food') openFood();
+    else if (v === 'weight') openWeight(todayKey());
+    else if (K.startOrResume) K.startOrResume();
+  },
+  shift: el => { S.train.shift = +el.dataset.v; save(); render(); },
+  tday: el => { const d = +el.dataset.v, T = S.train; T.days = T.days.includes(d) ? T.days.filter(x => x !== d) : T.days.concat(d); save(); render(); },
   food: () => openFood(),
   ftab: el => { foodTab = el.dataset.v; drawResults(); },
   pick: el => { const src = el.dataset.from === 'online' ? window._online : window._list; const f = src && src[+el.dataset.i]; if (f) openDetail(f); },
@@ -1034,5 +1193,12 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 // expose a few pure functions for testing
 window.Kalibra = { model, computeTargets, macrosFor, get state() { return S; }, set state(v) { S = v; save(); } };
 
-render();
+// Shared toolkit for feature modules (workouts.js). Modules add views, actions and hooks before first render.
+Object.assign(K, {
+  get S() { return S; }, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
+  todayKey, dkey, pkey, addDays, diffDays, niceDate, unit, wDisp, wIn, wFmt, chart, niceStep, latest, model, targetsOn, dayTotals, cnt, barW, animateIn,
+  reduceMotion, PROTEIN, openFood,
+});
+window.K = K;
+addEventListener('DOMContentLoaded', render);
 })();
