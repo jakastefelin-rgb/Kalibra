@@ -19,6 +19,21 @@ const INFO = window.KAL_EX_INFO || {};
 const info = id => { const r = INFO[id]; return r ? { stretch: r[0], overload: r[1], repMin: r[2], repMax: r[3], pick: r[4] || '', cues: r[5] || '' } : null; };
 const ex = id => EX[id] || T().custom.find(c => c.id === id) || { id, name: 'Exercise', primary: 'abs', secondary: [], equip: '', kind: 'w' };
 const allEx = () => T().custom.concat(Object.values(EX));
+// ---------- my gym ----------
+const EQUIP = window.KAL_EQUIP || {}, NEEDS = window.KAL_EX_NEEDS || {}, GYMS = window.KAL_GYMS || [];
+const gym = () => T().gym;
+const missing = id => { const g = gym(); return g ? (NEEDS[id] || []).filter(n => !g.equip.includes(n)) : []; };
+const canDo = id => missing(id).length === 0;
+const needsTxt = id => missing(id).map(n => EQUIP[n]).join(', ');
+// Same movement pattern (curl→curl, row→row, press→press) is the closest substitute.
+const PATTERNS = ['curl', 'row', 'press', 'squat', 'pulldown', 'fly', 'raise', 'extension', 'deadlift', 'lunge', 'pec deck', 'kickback', 'crunch'];
+const sameMove = (a, b) => PATTERNS.some(w => a.name.toLowerCase().includes(w) && b.name.toLowerCase().includes(w));
+const subScore = (e, cur) => { const i = info(e.id); return (i ? i.stretch * 2 + i.overload + (i.pick ? 1.5 : 0) : 2) + (sameMove(e, cur) ? 3 : 0); };
+// Best substitute for the same muscle that this gym can do (stretch, overload, top pick — see swapExercise).
+function bestSub(exId) {
+  const cur = ex(exId), avoid = T().avoid || [];
+  return allEx().filter(e => e.id !== exId && e.primary === cur.primary && canDo(e.id) && !avoid.includes(e.id)).sort((a, b) => subScore(b, cur) - subScore(a, cur))[0] || null;
+}
 const isLift = e => e.kind === 'w' || e.kind === 'bw';
 
 // ---------- units & maths ----------
@@ -190,6 +205,7 @@ function exerciseCard(x, xi) {
     <div class="xh"><button class="xn" data-wa="ex-info" data-id="${x.exId}"><b>${esc(e.name)}</b><span>${esc(MUS[e.primary] || '')}${lift ? ` · ${x.repMin}–${x.repMax} reps` : ''}${x.rest ? ` · rest ${x.rest >= 60 ? Math.floor(x.rest / 60) + ':' + String(x.rest % 60).padStart(2, '0') : x.rest + 's'}` : ''}</span></button>
       <button class="icon-btn sm" data-wa="ex-menu" data-x="${xi}" aria-label="Exercise options">${icon('dots')}</button></div>
     ${(() => { const inf = info(x.exId); return inf && (inf.pick || inf.cues) ? `<details class="cues"><summary>${inf.pick ? `<span class="pick">${esc(inf.pick)}</span>` : ''}Setup cues</summary><p>${esc(inf.cues || 'Control the lowering, 2–8 seconds per rep, and keep your form the same every week.')}</p></details>` : ''; })()}
+    ${!canDo(x.exId) ? `<p class="xhint warn">${icon('bolt')}Not at your gym — needs ${esc(needsTxt(x.exId))}. <button class="link" data-wa="ex-swap" data-x="${xi}">Swap it</button></p>` : ''}
     ${x.formChange ? `<p class="xhint warn">${icon('bolt')}Technique marked as changed today — extra reps may be fake overload.</p>` : ''}
     ${hint ? `<p class="xhint">${sg ? icon('bolt') : ''}${esc(hint)}${sg && sg.w ? ` <b>${wTxt(sg.w)} ${uLabel()} × ${sg.reps}</b>` : ''}</p>` : ''}
     <div class="shead ${e.kind === 'c' || e.kind === 't' ? 'one' : ''}"><span>Set</span><span>Previous</span>${e.kind === 'c' ? '<span>Time</span>' : e.kind === 't' ? '<span>Hold</span>' : `<span>${uLabel()}</span><span>Reps</span><span>RIR</span>`}<span></span></div>
@@ -238,6 +254,7 @@ function onWorkoutClick(e) {
   if (act === 'add-set') { const prev = x.sets.filter(s => !s.warm).pop(); x.sets.push({ done: false, w: prev && prev.w != null ? prev.w : undefined }); K.save(); drawWorkout(); return; }
   if (act === 'set-type') { const s = x.sets[si]; if (s.done) return; s.warm = !s.warm; K.save(); drawWorkout(); return; }
   if (act === 'ex-menu') return exerciseMenu(xi);
+  if (act === 'ex-swap') return swapExercise(x.exId, id => { const n = newEntry(id); n.sets = x.sets.filter(z => !z.done).map(() => ({ done: false })); if (!n.sets.length) n.sets = [{ done: false }]; a.exercises[xi] = n; K.save(); drawWorkout(); });
   if (act === 'ex-info') return openExercise(b.dataset.id);
   if (act === 'add-ex') return pickExercise(id => { a.exercises.push(newEntry(id)); K.save(); drawWorkout(); setTimeout(() => { const sb = wEl.querySelector('.sheet-b'); sb.scrollTo({ top: sb.scrollHeight, behavior: 'smooth' }); }, 60); });
   if (act === 'finish') return finishWorkout();
@@ -358,14 +375,16 @@ function swapExercise(curId, cb) {
   const cur = ex(curId);
   const avoid = T().avoid || (T().avoid = []);
   const dots = n => '●'.repeat(n) + '○'.repeat(3 - n);
-  const score = e => { const i = info(e.id); return i ? i.stretch * 2 + i.overload + (i.pick ? 1.5 : 0) : 2; };
+  const score = e => subScore(e, cur);
   const el = K.openSheet('Swap ' + cur.name, '<div id="sw"></div>', { full: true });
+  let showAll = !gym();
   const draw = () => {
-    const list = allEx().filter(e => e.id !== curId && e.primary === cur.primary && !avoid.includes(e.id)).sort((a, b) => score(b) - score(a));
-    el.querySelector('#sw').innerHTML = `<p class="note" style="margin-top:0">Ranked by how well each one ticks the three boxes: tension when the muscle is stretched, feels good in your joints, and room to keep adding reps or weight.</p>
+    const list = allEx().filter(e => e.id !== curId && e.primary === cur.primary && !avoid.includes(e.id) && (showAll || canDo(e.id))).sort((a, b) => (canDo(b.id) - canDo(a.id)) || score(b) - score(a));
+    el.querySelector('#sw').innerHTML = `<p class="note" style="margin-top:0">Ranked by how well each one ticks the three boxes: tension when the muscle is stretched, feels good in your joints, and room to keep adding reps or weight. The same movement pattern ranks first.</p>
       ${list.map((e, i) => { const n = info(e.id) || { stretch: 2, overload: 2 }; return `<button class="swap" data-id="${e.id}">
         <span class="n"><b>${esc(e.name)}${i === 0 ? ' <span class="pick">Best match</span>' : n.pick ? ` <span class="pick">${esc(n.pick.split(' · ')[0])}</span>` : ''}</b>
-        <span class="crit"><em>Stretch <i>${dots(n.stretch)}</i></em><em>Overload <i>${dots(n.overload)}</i></em><em>${esc(e.equip)}</em></span></span><span class="add-dot">${icon('plus')}</span></button>`; }).join('') || '<div class="empty">No other exercises for this muscle.</div>'}
+        <span class="crit"><em>Stretch <i>${dots(n.stretch)}</i></em><em>Overload <i>${dots(n.overload)}</i></em><em>${esc(e.equip)}</em>${canDo(e.id) ? '' : `<em class="na-t">Not at ${esc(gym().name)}</em>`}</span></span><span class="add-dot">${icon('plus')}</span></button>`; }).join('') || '<div class="empty">No other exercises for this muscle.</div>'}
+      ${gym() ? `<div class="row-btns"><button class="btn block ghost" id="swgym">${showAll ? 'Only show what ' + esc(gym().name) + ' has' : 'Include exercises your gym can’t do'}</button></div>` : ''}
       <div class="row-btns"><button class="btn block ghost" id="swhurt">${icon('minus')}${esc(cur.name)} doesn’t feel good — hide it</button></div>
       <div class="row-btns"><button class="btn block ghost" id="swall">Browse all exercises</button></div>
       ${avoid.length ? `<p class="note">Hidden because they didn’t feel good: ${avoid.map(id => esc(ex(id).name)).join(', ')}. <a class="link" id="swreset">Show again</a></p>` : ''}
@@ -375,6 +394,7 @@ function swapExercise(curId, cb) {
     const b = e.target.closest('.swap[data-id]'); if (b) { K.closeSheet(); cb(b.dataset.id); return; }
     if (e.target.closest('#swhurt')) { if (!avoid.includes(curId)) avoid.push(curId); K.save(); K.toast('Hidden from swap suggestions'); draw(); }
     if (e.target.closest('#swall')) { K.closeSheet(); pickExercise(cb); }
+    if (e.target.closest('#swgym')) { showAll = !showAll; draw(); }
     if (e.target.closest('#swreset')) { T().avoid = []; K.save(); K.closeSheet(); swapExercise(curId, cb); }
   });
   draw();
@@ -390,8 +410,8 @@ function pickExercise(cb) {
     el.querySelector('#xm').innerHTML = [['', 'All']].concat(Object.entries(MUS)).map(([k, l]) => `<button class="chip" data-m="${k}" aria-pressed="${mus === k}">${l}</button>`).join('');
     const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     const list = allEx().filter(e => (!mus || e.primary === mus || e.secondary.includes(mus)) && toks.every(t => (e.name + ' ' + e.equip + ' ' + (MUS[e.primary] || '')).toLowerCase().includes(t)))
-      .sort((a, b) => (mus && a.primary === mus ? 0 : 1) - (mus && b.primary === mus ? 0 : 1));
-    el.querySelector('#xl').innerHTML = list.map(e => `<button class="result" data-id="${e.id}"><span class="n"><b>${esc(e.name)}</b><span>${esc(MUS[e.primary] || '')} · ${esc(e.equip)}</span></span><span class="add-dot">${icon('plus')}</span></button>`).join('') || '<div class="empty"><b>No matches</b>Create the exercise yourself below.</div>';
+      .sort((a, b) => (canDo(b.id) - canDo(a.id)) || (mus && a.primary === mus ? 0 : 1) - (mus && b.primary === mus ? 0 : 1));
+    el.querySelector('#xl').innerHTML = list.map(e => `<button class="result ${canDo(e.id) ? '' : 'na'}" data-id="${e.id}"><span class="n"><b>${esc(e.name)}</b><span>${canDo(e.id) ? `${esc(MUS[e.primary] || '')} · ${esc(e.equip)}` : `Not at ${esc(gym().name)} — needs ${esc(needsTxt(e.id))}`}</span></span><span class="add-dot">${icon('plus')}</span></button>`).join('') || '<div class="empty"><b>No matches</b>Create the exercise yourself below.</div>';
   };
   el.querySelector('#xq').addEventListener('input', e => { q = e.target.value; draw(); });
   el.addEventListener('click', e => {
@@ -420,7 +440,7 @@ function editTemplate(tpl) {
   const el = K.openSheet(isNew ? 'New template' : 'Edit template', '<div id="te"></div>', { full: true });
   const draw = () => {
     el.querySelector('#te').innerHTML = `<label class="field"><span>Name</span><input class="input" id="tn" value="${esc(d.name)}" placeholder="e.g. Push day"></label>
-      <div style="margin-top:14px">${d.exercises.map((x, i) => { const e = ex(x.exId); return `<div class="trow"><div class="n"><b>${esc(e.name)}</b><span class="mute">${esc(MUS[e.primary] || '')}</span></div>
+      <div style="margin-top:14px">${d.exercises.map((x, i) => { const e = ex(x.exId); return `<div class="trow"><div class="n"><b>${esc(e.name)}</b><span class="${canDo(x.exId) ? 'mute' : 'na-t'}">${canDo(x.exId) ? esc(MUS[e.primary] || '') : 'Not at your gym'}</span></div>
         ${isLift(e) ? `<label><input class="si" data-i="${i}" data-f="sets" inputmode="numeric" value="${x.sets}"><span>sets</span></label><label><input class="si" data-i="${i}" data-f="repMin" inputmode="numeric" value="${x.repMin}"><span>min</span></label><label><input class="si" data-i="${i}" data-f="repMax" inputmode="numeric" value="${x.repMax}"><span>max</span></label>` : `<label><input class="si" data-i="${i}" data-f="sets" inputmode="numeric" value="${x.sets}"><span>sets</span></label>`}
         <button class="icon-btn sm" data-del="${i}" aria-label="Remove">${icon('trash')}</button></div>`; }).join('') || '<div class="empty">No exercises yet.</div>'}</div>
       <div class="row-btns"><button class="btn block ghost" id="tadd">${icon('plus')}Add exercise</button></div>
@@ -451,8 +471,12 @@ function addProgram() {
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-p]'); if (!b) return;
     const p = P[+b.dataset.p], prog = 'p' + uid();
-    p[2].forEach(([name, items]) => T().templates.push(templateFromDay(name, items, prog)));
-    K.save(); K.closeSheet(); K.render(); K.toast(p[0] + ' added');
+    let swapped = 0;
+    p[2].forEach(([name, items]) => {
+      const fixed = items.map(it => { if (canDo(it[0])) return it; const sub = bestSub(it[0]); if (!sub) return it; swapped++; const i = info(sub.id); return [sub.id, it[1], i ? i.repMin : it[2], i ? i.repMax : it[3]]; });
+      T().templates.push(templateFromDay(name, fixed, prog));
+    });
+    K.save(); K.closeSheet(); K.render(); K.toast(p[0] + ' added' + (swapped ? ` — ${swapped} exercise${swapped > 1 ? 's' : ''} swapped to fit ${gym().name}` : ''));
   });
 }
 function openSession(id) {
@@ -482,6 +506,53 @@ function openExercise(id) {
       <div class="kv"><span>Default rep range</span><b>${inf.repMin}–${inf.repMax}</b></div></div>` : ''}
     ${isLift(e) && best ? `<div class="card"><div class="card-h"><h2>Estimated 1-rep max</h2><b class="num">${e1Txt(best)} ${uLabel()}</b></div>${chartH || '<p class="note">Log this exercise in two sessions to see your trend.</p>'}</div>` : ''}
     <div class="card"><div class="card-h"><h2>History</h2></div>${hist.slice().reverse().slice(0, 12).map(s => `<div class="kv"><span>${esc(K.niceDate(s.date, true))}</span><b>${s.exercises.filter(x => x.exId === id).flatMap(x => work(x.sets)).map(st => e.kind === 'c' ? st.min + ' min' : e.kind === 't' ? st.sec + 's' : (st.w ? wTxt(st.w) + '×' : '') + st.reps).join(', ')}</b></div>`).join('') || '<div class="empty">Not logged yet.</div>'}</div>`);
+}
+
+function openGym() {
+  const cur = gym();
+  const d = cur ? JSON.parse(JSON.stringify(cur)) : { id: '', name: '', equip: [] };
+  const el = K.openSheet('My gym', '<div id="gy"></div>', { full: true });
+  const dir = GYMS.find(g => g.id === d.id);
+  const draw = () => {
+    const g0 = GYMS.find(g => g.id === d.id);
+    const usable = allEx().filter(e => e.kind !== 'c' && (NEEDS[e.id] || []).every(n => d.equip.includes(n))).length;
+    el.querySelector('#gy').innerHTML = `
+      <p class="note" style="margin-top:0">Tick what your gym has. Exercise picks, swaps and new programs then stick to equipment you can actually use.</p>
+      <h3 class="sub-h">Gyms in Gorenjska</h3>
+      ${GYMS.map(g => `<div class="gym ${d.id === g.id ? 'sel' : ''}"><button class="gym-b" data-g="${g.id}"><b>${esc(g.name)}</b><span>${esc(g.town)} · ${esc(g.address)}</span>
+        <span class="gym-f">${[g.size !== 'Not stated' ? g.size : '', g.brand !== 'Not stated' ? g.brand + ' machines' : '', g.hours !== 'Check with the gym' ? g.hours : ''].filter(Boolean).map(esc).join(' · ')}</span></button>
+        ${d.id === g.id ? `<div class="gym-d">${g.extras.length ? `<p>${g.extras.map(esc).join(' · ')}</p>` : ''}<p class="mute">${esc(g.note)}</p>
+          <p>${g.phone ? `<a class="link" href="tel:${esc(g.phone.replace(/\s/g, ''))}">${esc(g.phone)}</a>` : ''}${g.email ? ` · <a class="link" href="mailto:${esc(g.email)}">${esc(g.email)}</a>` : ''}${g.web ? ` · <a class="link" href="${esc(g.web)}" target="_blank" rel="noopener">Website</a>` : ''}</p></div>` : ''}</div>`).join('')}
+      <button class="gym-b other ${d.id === 'custom' ? 'sel' : ''}" data-g="custom"><b>Another gym or home gym</b><span>Name it and tick its equipment</span></button>
+      ${d.id === 'custom' ? `<label class="field"><span>Gym name</span><input class="input" id="gyn" value="${esc(d.name)}" placeholder="e.g. Home gym"></label>` : ''}
+      ${d.id ? `<h3 class="sub-h">Equipment at ${esc(d.name || 'your gym')}</h3>
+        <div class="row-btns" style="margin-top:0"><button class="chip" data-preset="typical">Typical gym</button><button class="chip" data-preset="full">Everything</button><button class="chip" data-preset="home">Home gym</button><button class="chip" data-preset="none">Clear</button></div>
+        <div class="eq">${Object.entries(EQUIP).map(([k, l]) => `<button class="eq-b" data-eq="${k}" aria-pressed="${d.equip.includes(k)}">${icon('check')}<span>${esc(l)}${g0 && g0.confirmed.includes(k) ? '<small>named in gym listing</small>' : ''}</span></button>`).join('')}</div>
+        <p class="note">${usable} of ${allEx().filter(e => e.kind !== 'c').length} exercises possible with this equipment. ${g0 ? 'Public listings don’t give a full machine list, so check what you see on your next visit — or ask the front desk.' : ''}</p>
+        <div class="row-btns"><button class="btn block" id="gysave">Save my gym</button></div>` : ''}
+      ${cur ? '<div class="row-btns"><button class="btn block danger" id="gyclear">Stop filtering by gym</button></div>' : ''}
+      <p class="note">Gym details from public listings, checked November 2026 — hours and prices change, so confirm with the gym.</p>`;
+  };
+  el.addEventListener('input', e => { if (e.target.id === 'gyn') d.name = e.target.value; });
+  el.addEventListener('click', e => {
+    const g = e.target.closest('[data-g]');
+    if (g) {
+      const id = g.dataset.g;
+      if (id === 'custom') { if (d.id !== 'custom') { d.id = 'custom'; d.name = ''; } }
+      else { const src = GYMS.find(x => x.id === id); if (d.id !== id) { d.id = id; d.name = src.name; d.equip = Array.from(new Set(src.confirmed.concat(d.equip))); } }
+      draw(); return;
+    }
+    const pr = e.target.closest('[data-preset]');
+    if (pr) { const v = pr.dataset.preset; d.equip = v === 'none' ? [] : window.KAL_EQUIP_PRESETS[v].slice(); draw(); return; }
+    const q = e.target.closest('[data-eq]');
+    if (q) { const k = q.dataset.eq; d.equip = d.equip.includes(k) ? d.equip.filter(x => x !== k) : d.equip.concat(k); q.setAttribute('aria-pressed', String(d.equip.includes(k))); return; }
+    if (e.target.closest('#gysave')) {
+      if (!d.name.trim()) { K.toast('Name your gym'); return; }
+      T().gym = d; K.save(); K.closeSheet(); K.render(); K.toast(d.name + ' saved');
+    }
+    if (e.target.closest('#gyclear')) { T().gym = null; K.save(); K.closeSheet(); K.render(); K.toast('Showing all exercises'); }
+  });
+  draw();
 }
 
 function openTips() {
@@ -537,6 +608,7 @@ function viewTrain() {
   </div>
   ${!a ? `<div class="row-btns"><button class="btn sm ghost" data-act="wo-empty">${icon('plus')}Empty workout</button><button class="btn sm ghost" data-act="tpl-new">${icon('edit')}New template</button><button class="btn sm ghost" data-act="program">${icon('dumbbell')}Programs</button></div>` : ''}
   ${T().templates.length ? `<section class="card"><div class="card-h"><h2>Templates</h2></div>${Object.values(groups).map(g => g.map(tplCard).join('')).join('<hr class="sep">')}</section>` : ''}
+  <button class="tcard" data-act="gym"><span class="ic">${icon('plan')}</span><span class="n"><b>${gym() ? esc(gym().name) : 'Set up my gym'}</b><span>${gym() ? `${gym().equip.length} of ${Object.keys(EQUIP).length} equipment types · exercises adapt to it` : 'Pick your gym in Gorenjska or tick your equipment'}</span></span>${icon('right')}</button>
   <button class="tcard" data-act="train-tips"><span class="ic">${icon('bolt')}</span><span class="n"><b>Training tips</b><span>Best exercises per muscle, tempo, failure, real vs fake overload</span></span>${icon('right')}</button>
   <section class="card"><div class="card-h"><h2>Sets per muscle this week</h2><span class="mute" style="font-size:13px">Target ${band[0]}–${band[1]}</span></div>
     <div class="mv">${muscles.map(m => { const v = mv[m] || 0; return `<div class="mv-r"><span>${MUS[m]}</span><div class="mv-b"><i class="mv-zone" style="left:${band[0] / 24 * 100}%;width:${(band[1] - band[0]) / 24 * 100}%"></i>${K.barW('mv-' + m, v / 24 * 100, v >= band[0] ? 'var(--brand)' : v > 0 ? 'var(--fat)' : 'transparent')}</div><b class="num">${r1(v)}</b></div>`; }).join('')}</div>
@@ -611,6 +683,7 @@ Object.assign(K.actions, {
   'ex-lib': () => exerciseLibrary(),
   'ex-open': el => openExercise(el.dataset.id),
   'train-tips': () => openTips(),
+  gym: () => openGym(),
 });
 // resume a running rest timer after reload
 addEventListener('DOMContentLoaded', () => { const a = K.S.train && K.S.train.active; if (a && a.restEnd && a.restEnd > Date.now()) showRest(); });

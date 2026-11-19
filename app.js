@@ -343,8 +343,10 @@ function rememberRecent(food) {
 }
 
 // ---------- foods ----------
+const ALIASES = Object.entries(window.KAL_FOOD_ALIASES || {});
 const DB = (window.KAL_FOODS || []).map((r, i) => ({
-  src: 'db', id: 'db' + i, name: r[0], cat: r[1], brand: 'USDA',
+  src: 'db', id: 'db' + i, name: r[0], cat: r[1], brand: r[8] === 't' ? 'Typical values' : 'USDA', typical: r[8] === 't',
+  alias: ALIASES.filter(([k]) => r[0].includes(k)).map(([, v]) => v).join(' '),
   per100: { kcal: r[2], p: r[3], c: r[4], f: r[5], fib: r[6] },
   servings: r[7] ? r[7].split(';').map(s => { const j = s.lastIndexOf(':'); return { label: s.slice(0, j), g: +s.slice(j + 1) }; }) : [],
 }));
@@ -353,9 +355,9 @@ function searchLocal(q) {
   const pool = S.custom.concat(DB);
   if (!toks.length) return pool;
   return pool.map(f => {
-    const n = (f.name + ' ' + (f.brand || '') + ' ' + (f.cat || '')).toLowerCase();
+    const n = (f.name + ' ' + (f.brand || '') + ' ' + (f.cat || '') + ' ' + (f.alias || '')).toLowerCase();
     if (!toks.every(t => n.includes(t))) return null;
-    return [f, (f.name.toLowerCase().startsWith(toks[0]) ? 0 : 1) + (f.src === 'custom' ? -0.5 : 0)];
+    return [f, (f.name.toLowerCase().startsWith(toks[0]) ? 0 : 1) + (f.src === 'custom' ? -0.5 : 0) + (f.typical ? 0.6 : 0)];
   }).filter(Boolean).sort((a, b) => a[1] - b[1] || a[0].name.length - b[0].name.length).map(x => x[0]);
 }
 function offToFood(p) {
@@ -934,7 +936,7 @@ function resultRow(f, from, i) {
   const sv = f.servings && f.servings[0];
   const kcal = sv ? f.per100.kcal * sv.g / 100 : f.per100.kcal;
   return `<button class="result" data-act="pick" data-from="${from}" data-i="${i}">
-    <span class="n"><b>${esc(f.name)}</b><span>${esc([f.brand && f.src !== 'db' ? f.brand : '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
+    <span class="n"><b>${esc(f.name)}</b><span>${esc([f.brand && (f.src !== 'db' || f.typical) ? f.brand : '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
     <span class="k num">${fmt(kcal)}<small>kcal</small></span><span class="add-dot">${icon('plus')}</span></button>`;
 }
 
