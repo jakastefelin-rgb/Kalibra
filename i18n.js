@@ -390,6 +390,7 @@ const P = [
   [/^\. Even one extra rep is progressive overload\.$/, () => '. Že ena ponovitev več je progresija.'], [/^(\d+) new personal records?\.$/, (_, n) => `${n} ${pl(n, 'nov osebni rekord', 'nova osebna rekorda', 'novi osebni rekordi', 'novih osebnih rekordov')}.`],
   [/^Possible fake overload on (.+): reps went up on a day you marked your technique as changed\. Keep form identical week to week so extra reps mean extra muscle\.$/, (_, x) => `Možna lažna progresija pri: ${list(x)}. Ponovitve so se povečale na dan, ko si označil spremenjeno tehniko. Izvedba naj bo vsak teden enaka, da dodatne ponovitve pomenijo dodatne mišice.`],
   [/^Set (\d+)$/, (_, n) => `Serija ${n}`],
+  [/^([\d\u202f,.]+) foods on this phone, plus millions more in the Online tab\.$/, (_, n) => `${n} živil v telefonu, še milijoni več v zavihku Splet.`],
   [/^Popular at (.+) in Slovenia$/, (_, x) => `Priljubljeno v trgovini ${x} v Sloveniji`], [/^Popular at (.+)$/, (_, x) => `Priljubljeno v trgovini ${x}`],
   [/^Showing worldwide results — few (.+) products are tagged for Slovenia yet\.$/, (_, x) => `Prikazani so rezultati z vsega sveta — za Slovenijo je označenih še malo izdelkov trgovine ${x}.`],
   [/^Every (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/, (_, d) => ({ Monday: 'Vsak ponedeljek', Tuesday: 'Vsak torek', Wednesday: 'Vsako sredo', Thursday: 'Vsak četrtek', Friday: 'Vsak petek', Saturday: 'Vsako soboto', Sunday: 'Vsako nedeljo' })[d]],

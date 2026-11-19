@@ -356,14 +356,32 @@ const DB = (window.KAL_FOODS || []).map((r, i) => ({
   per100: { kcal: r[2], p: r[3], c: r[4], f: r[5], fib: r[6] },
   servings: r[7] ? r[7].split(';').map(s => { const j = s.lastIndexOf(':'); return { label: s.slice(0, j), g: +s.slice(j + 1) }; }) : [],
 }));
+// Large offline databases, loaded on first use: USDA SR Legacy (~7,400 generic foods) and every product
+// Open Food Facts lists as sold in Slovenia. Both are cached by the service worker for offline use.
+let BIG = [], bigLoad = null;
+const parseServ = str => str ? str.split(';').map(x => { const j = x.lastIndexOf(':'); return { label: x.slice(0, j), g: +x.slice(j + 1) }; }).filter(x => x.g > 0) : [];
+function loadBig() {
+  if (!bigLoad) bigLoad = Promise.all([
+    fetch('data/products-si.json').then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch('data/usda.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  ]).then(([si, us]) => {
+    const prod = si.map(r => ({ src: 'off', id: r[0], code: r[0], name: r[1], brand: r[2], stores: r[3], per100: { kcal: r[4], p: r[5], c: r[6], f: r[7], fib: r[8] }, servings: parseServ(r[9]), alias: r[10] || '' }));
+    const usda = us.map((r, i) => ({ src: 'usda', id: 'u' + i, name: r[0], cat: r[1], brand: 'USDA', per100: { kcal: r[2], p: r[3], c: r[4], f: r[5], fib: r[6] }, servings: parseServ(r[7]),
+      alias: ALIASES.filter(([k]) => r[0].includes(k)).map(([, v]) => v).join(' ') }));
+    BIG = prod.concat(usda);
+    return BIG;
+  });
+  return bigLoad;
+}
 function searchLocal(q) {
   const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const pool = S.custom.concat(DB);
-  if (!toks.length) return pool;
+  const pool = S.custom.concat(DB, BIG);
+  if (!toks.length) return S.custom.concat(DB);
+  const rank = { custom: -0.5, db: 0, off: 0.4, usda: 0.8 };
   return pool.map(f => {
-    const n = (f.name + ' ' + (f.brand || '') + ' ' + (f.cat || '') + ' ' + (f.alias || '')).toLowerCase();
+    const n = f._s || (f._s = (f.name + ' ' + (f.brand || '') + ' ' + (f.stores || '') + ' ' + (f.cat || '') + ' ' + (f.alias || '')).toLowerCase());
     if (!toks.every(t => n.includes(t))) return null;
-    return [f, (f.name.toLowerCase().startsWith(toks[0]) ? 0 : 1) + (f.src === 'custom' ? -0.5 : 0) + (f.typical ? 0.6 : 0)];
+    return [f, (f.name.toLowerCase().startsWith(toks[0]) ? 0 : 1) + (rank[f.src] || 0) + (f.typical ? 0.6 : 0)];
   }).filter(Boolean).sort((a, b) => a[1] - b[1] || a[0].name.length - b[0].name.length).map(x => x[0]);
 }
 function offToFood(p) {
@@ -941,8 +959,9 @@ function openFood() {
     </div>
     <div class="chips" id="ftabs"></div><div id="fres"></div>`, { full: true });
   const q = el.querySelector('#fq');
-  q.addEventListener('input', () => { foodQ = q.value; clearTimeout(searchTimer); searchTimer = setTimeout(drawResults, foodTab === 'online' ? 450 : 80); });
+  q.addEventListener('input', () => { foodQ = q.value; clearTimeout(searchTimer); searchTimer = setTimeout(drawResults, foodTab === 'online' ? 450 : 120); });
   drawResults();
+  if (!BIG.length) loadBig().then(() => { if (document.getElementById('fres') && foodTab !== 'online') drawResults(); });
 }
 function drawResults() {
   const box = $('#fres'), tabs = $('#ftabs'); if (!box) return;
@@ -971,7 +990,7 @@ function drawResults() {
   else list = q ? searchLocal(q) : S.recents.slice(0, 8).concat(DB.filter(f => !S.recents.some(r => r.id === f.id)));
   list = list.slice(0, 80);
   window._list = list;
-  box.innerHTML = (foodTab === 'all' && !q && S.recents.length ? '<p class="note">Recent and common foods</p>' : '') +
+  box.innerHTML = (foodTab === 'all' && !q ? `<p class="note">${BIG.length ? `${fmt(DB.length + BIG.length)} foods on this phone, plus millions more in the Online tab.` : 'Recent and common foods'}</p>` : '') +
     (list.length ? list.map((f, i) => resultRow(f, 'list', i)).join('') : `<div class="empty"><b>No matches</b>${foodTab === 'mine' ? 'Foods you create appear here.' : 'Try the Online tab for branded products.'}</div>`) +
     (q.length > 1 && foodTab === 'all' ? `<button class="result" data-act="ftab" data-v="online"><span class="add-dot">${icon('globe')}</span><span class="n"><b>Search “${esc(q)}” online</b><span>Branded and packaged foods</span></span></button>` : '');
 }
@@ -1134,7 +1153,7 @@ function loadScript(src) {
   return new Promise((ok, fail) => { if ([...document.scripts].some(s => s.src === src)) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.append(s); });
 }
 async function lookupCode(code) {
-  const mine = S.custom.find(f => f.code === code);
+  const mine = S.custom.find(f => f.code === code) || (await loadBig()).find(f => f.code === code);
   if (mine) { closeSheet(); openDetail(mine); return; }
   toast('Looking up ' + code + '…');
   try {
