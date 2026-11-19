@@ -4,7 +4,9 @@ Adaptive calorie and macro coach. Log food and weigh in; Kalibra measures your r
 expenditure from intake vs. weight change and updates your targets at a weekly check-in.
 
 - Single-page PWA, no build step, no server. Data is stored on the device (export/import in the app).
-- Food data: USDA FoodData Central (built in) and Open Food Facts (online search + barcode).
+- Food data: hand-picked foods plus the full USDA FoodData Central SR Legacy set (7,448 foods, public domain) in
+  `data/usda.json`, and 4,673 products sold in Slovenia from Open Food Facts (ODbL) in `data/products-si.json`,
+  filtered for complete, plausible nutrition. Online search and barcode lookup reach all of Open Food Facts.
 - Lean bulk goal: gain rate by training experience (% body weight per month), maintenance + 5–10 % surplus,
   protein 0.7–1 g/lb, fat 20–30 %, weekly ±150 kcal adjustments from trend weight. Based on Jeff Nippard,
   "How To Bulk Like A Pro (Using Science)".
