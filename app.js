@@ -373,17 +373,42 @@ function offToFood(p) {
   if (kcal == null) return null;
   const sq = num(p.serving_quantity);
   return {
-    src: 'off', id: p.code, code: p.code, name: p.product_name || p.product_name_en || 'Unnamed product', brand: (p.brands || '').split(',')[0],
+    src: 'off', id: p.code, code: p.code, name: (isSl() && p.product_name_sl) || p.product_name || p.product_name_en || 'Unnamed product', brand: (p.brands || '').split(',')[0],
+    stores: (p.stores || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 3).join(', '),
     per100: { kcal: +kcal || 0, p: +n.proteins_100g || 0, c: +n.carbohydrates_100g || 0, f: +n.fat_100g || 0, fib: +n.fiber_100g || 0 },
-    servings: sq > 0 ? [{ label: p.serving_size ? '1 serving (' + p.serving_size + ')' : '1 serving', g: sq }] : [],
+    servings: sq > 0 ? [{ label: p.serving_size && !/^\s*[\d.,]+\s*(g|ml)\s*$/i.test(p.serving_size) ? '1 serving · ' + p.serving_size.replace(/\s*\(.*\)\s*$/, '') : '1 serving', g: sq }] : [],
   };
 }
 const OFF_FIELDS = 'code,product_name,product_name_en,brands,nutriments,serving_quantity,serving_size';
-async function offSearch(q) {
-  const u = 'https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1&page_size=25&fields=' + OFF_FIELDS + '&search_terms=' + encodeURIComponent(q);
+// Stores as Open Food Facts tags them. Each store can have more than one tag (Spar also sells as Interspar).
+const STORES = { spar: ['spar', 'interspar', 'eurospar'], hofer: ['hofer'], lidl: ['lidl'], mercator: ['mercator'] };
+const STORE_NAMES = { spar: 'Spar', hofer: 'Hofer', lidl: 'Lidl', mercator: 'Mercator' };
+async function offQuery(q, storeTag, slovenia) {
+  let u = 'https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1&page_size=40&fields=' + OFF_FIELDS + ',stores,product_name_sl';
+  let i = 0;
+  if (q) u += '&search_terms=' + encodeURIComponent(q);
+  else u += '&sort_by=unique_scans_n';
+  if (storeTag) { u += `&tagtype_${i}=stores&tag_contains_${i}=contains&tag_${i}=${encodeURIComponent(storeTag)}`; i++; }
+  if (slovenia) u += `&tagtype_${i}=countries&tag_contains_${i}=contains&tag_${i}=slovenia`;
   const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status);
   const j = await r.json();
-  return (j.products || []).map(offToFood).filter(Boolean);
+  return j.products || [];
+}
+// Search Open Food Facts, optionally only one store's products and only products sold in Slovenia.
+// Falls back to worldwide when a store has few products tagged for Slovenia.
+async function offSearch(q, store = '', slovenia = false) {
+  const tags = store ? STORES[store] : [''];
+  const run = async si => {
+    const lists = await Promise.all(tags.map(t => offQuery(q, t, si).catch(() => [])));
+    const seen = new Set(), out = [];
+    lists.flat().forEach(p => { if (p.code && !seen.has(p.code)) { seen.add(p.code); const f = offToFood(p); if (f) out.push(f); } });
+    return out;
+  };
+  let res = await run(slovenia), widened = false;
+  if (slovenia && store && res.length < 5) { const more = await run(false); widened = more.length > res.length; if (widened) res = more; }
+  if (!res.length && !store && !q) throw new Error('empty');
+  res.widened = widened;
+  return res;
 }
 async function offBarcode(code) {
   const r = await fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(code) + '.json?fields=' + OFF_FIELDS);
@@ -926,11 +951,19 @@ function drawResults() {
   const q = foodQ.trim();
   let list;
   if (foodTab === 'online') {
-    if (q.length < 2) { box.innerHTML = '<div class="empty"><b>Search branded products</b>Type a product name to search Open Food Facts.</div>'; return; }
+    const st = S.settings.offStore || '', si = S.settings.offRegion !== 'world';
+    const bar = `<div class="chips stores">${[['', 'All stores'], ...Object.entries(STORE_NAMES)].map(([v, l]) => `<button class="chip" data-act="offstore" data-v="${v}" aria-pressed="${st === v}">${l}</button>`).join('')}</div>
+      <div class="seg" style="margin:6px 0 4px">${[['si', 'Slovenia'], ['world', 'Worldwide']].map(([v, l]) => `<button data-act="offregion" data-v="${v}" aria-pressed="${(si ? 'si' : 'world') === v}">${l}</button>`).join('')}</div>`;
+    if (q.length < 2 && !st) { box.innerHTML = bar + '<div class="empty"><b>Search branded products</b>Type a product name, or pick a store to browse its products.</div>'; return; }
     const req = ++onlineReq;
-    box.innerHTML = '<div class="empty">Searching…</div>';
-    offSearch(q).then(r => { if (req !== onlineReq) return; window._online = r; box.innerHTML = r.length ? r.map((f, i) => resultRow(f, 'online', i)).join('') : '<div class="empty"><b>No products found</b>Try a shorter name, or create the food yourself.</div>'; })
-      .catch(() => { if (req === onlineReq) box.innerHTML = '<div class="empty"><b>Online search is unavailable</b>Check your connection. The built-in database still works offline.</div>'; });
+    box.innerHTML = bar + '<div class="empty">Searching…</div>';
+    offSearch(q.length < 2 ? '' : q, st, si).then(r => {
+      if (req !== onlineReq) return; window._online = r;
+      const head = !q && st ? `<p class="note">Popular at ${STORE_NAMES[st]}${si && !r.widened ? ' in Slovenia' : ''}</p>` : '';
+      const wide = r.widened ? `<p class="note">Showing worldwide results — few ${STORE_NAMES[st]} products are tagged for Slovenia yet.</p>` : '';
+      box.innerHTML = bar + head + wide + (r.length ? r.map((f, i) => resultRow(f, 'online', i)).join('') : '<div class="empty"><b>No products found</b>Try a shorter name, or create the food yourself.</div>')
+        + '<p class="note">Products and their nutrition come from Open Food Facts, a free database filled in by shoppers. Missing a product? Scan its barcode — if it isn’t there, add it from the label.</p>';
+    }).catch(() => { if (req === onlineReq) box.innerHTML = bar + '<div class="empty"><b>Online search is unavailable</b>Check your connection. The built-in database still works offline.</div>'; });
     return;
   }
   if (foodTab === 'recent') list = S.recents.filter(f => !q || f.name.toLowerCase().includes(q.toLowerCase()));
@@ -946,7 +979,7 @@ function resultRow(f, from, i) {
   const sv = f.servings && f.servings[0];
   const kcal = sv ? f.per100.kcal * sv.g / 100 : f.per100.kcal;
   return `<button class="result" data-act="pick" data-from="${from}" data-i="${i}">
-    <span class="n"><b>${esc(f.name)}</b><span>${esc([f.brand && (f.src !== 'db' || f.typical) ? f.brand : '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
+    <span class="n"><b>${esc(f.name)}</b><span>${esc([f.brand && (f.src !== 'db' || f.typical) ? f.brand : '', f.stores || '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
     <span class="k num">${fmt(kcal)}<small>kcal</small></span><span class="add-dot">${icon('plus')}</span></button>`;
 }
 
@@ -1259,6 +1292,8 @@ const actions = {
   tday: el => { const d = +el.dataset.v, T = S.train; T.days = T.days.includes(d) ? T.days.filter(x => x !== d) : T.days.concat(d); save(); render(); },
   food: () => openFood(),
   ftab: el => { foodTab = el.dataset.v; drawResults(); },
+  offstore: el => { S.settings.offStore = el.dataset.v; save(); drawResults(); },
+  offregion: el => { S.settings.offRegion = el.dataset.v; save(); drawResults(); },
   pick: el => { const src = el.dataset.from === 'online' ? window._online : window._list; const f = src && src[+el.dataset.i]; if (f) openDetail(f); },
   quick: () => openQuick(),
   scan: () => openScan(),
