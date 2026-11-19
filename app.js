@@ -613,9 +613,10 @@ function ensureShell() {
       ${tab('progress', 'chart', 'Progress')}${tab('plan', 'plan', 'Plan')}</div></nav>`;
 }
 function header(v) {
-  const me = `<button class="icon-btn" data-act="view" data-v="profile" aria-label="Profile and settings">${icon('user')}</button>`;
+  const lang = `<button class="lang-btn" data-act="toggle-lang" aria-label="Change language">${icon('globe')}<span>${isSl() ? 'SL' : 'EN'}</span></button>`;
+  const me = lang + `<button class="icon-btn" data-act="view" data-v="profile" aria-label="Profile and settings">${icon('user')}</button>`;
   if (v === 'today') return `<div class="top-in"><h1 class="num">${esc(niceDate(ui.date, true))}</h1><div class="datenav"><button data-act="day" data-n="-1" aria-label="Previous day">${icon('left')}</button><span>${pkey(ui.date).toLocaleDateString(loc(), { day: 'numeric', month: 'short' })}</span><button data-act="day" data-n="1" aria-label="Next day">${icon('right')}</button></div>${me}</div>`;
-  return `<div class="top-in"><h1>${TITLES[v]}</h1>${v === 'profile' ? '' : me}</div>`;
+  return `<div class="top-in"><h1>${TITLES[v]}</h1>${v === 'profile' ? lang : me}</div>`;
 }
 function render() {
   applyTheme();
@@ -1284,7 +1285,8 @@ const actions = {
   goal: () => openGoal(),
   'edit-profile': () => openEditProfile(),
   'set-unit': el => { S.settings.unit = el.dataset.v; save(); render(); },
-  'set-lang': el => { S.settings.lang = el.dataset.v; save(); applyTheme(); const m = $('#main'); if (m) m.dataset.sig = ''; render(); },
+  'toggle-lang': () => { S.settings.lang = isSl() ? 'en' : 'sl'; save(); applyTheme(); $('#app').innerHTML = ''; render(); toast(isSl() ? 'Jezik: slovenščina' : 'Language: English'); },
+  'set-lang': el => { S.settings.lang = el.dataset.v; save(); applyTheme(); $('#app').innerHTML = ''; render(); },
   'set-theme': el => { S.settings.theme = el.dataset.v; save(); render(); },
   export: () => {
     const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });

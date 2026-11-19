@@ -10,7 +10,7 @@ const pl = (n, one, two, few, many) => { const x = Math.abs(Math.round(+String(n
 const S = {
   // ---- navigation & common
   'Today': 'Danes', 'Yesterday': 'Včeraj', 'Tomorrow': 'Jutri', 'Train': 'Trening', 'Progress': 'Napredek', 'Plan': 'Načrt', 'You': 'Profil',
-  'Main': 'Glavni meni', 'Add': 'Dodaj', 'Close': 'Zapri', 'Previous day': 'Prejšnji dan', 'Next day': 'Naslednji dan', 'Profile and settings': 'Profil in nastavitve',
+  'Main': 'Glavni meni', 'Add': 'Dodaj', 'Close': 'Zapri', 'Previous day': 'Prejšnji dan', 'Next day': 'Naslednji dan', 'Profile and settings': 'Profil in nastavitve', 'Change language': 'Zamenjaj jezik',
   'Save': 'Shrani', 'Save changes': 'Shrani spremembe', 'Edit': 'Uredi', 'Done': 'Končano', 'Back': 'Nazaj', 'Continue': 'Naprej', 'Remove': 'Odstrani', 'Clear': 'Počisti',
   'Log food': 'Vnesi hrano', 'Log weight': 'Vnesi težo', 'Start workout': 'Začni trening', 'Resume workout': 'Nadaljuj trening',
   'kcal': 'kcal', 'g': 'g', 'min': 'min', 'max': 'maks.', 'sets': 'serije', 'set': 'serija', 'Sets': 'Serije', 'Volume': 'Volumen', 't': 't',
