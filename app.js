@@ -39,6 +39,17 @@ const PROTEIN = {
   moderate: ['Moderate', 1.6], high: ['High', 2.0], extra: ['Very high', 2.4],
 };
 const RATES = { lose: [0.25, 0.5, 0.75, 1.0], gain: [0.1, 0.25, 0.5] };
+// Lean bulk (Jeff Nippard, "How To Bulk Like A Pro"): gain rate as % of body weight per month, by training age.
+// [label, description, monthly rate options, default rate, default surplus]. Default surpluses per level are our choice inside the 5–10 % band.
+const BULK = {
+  beginner: ['Beginner', 'Less than about a year of consistent training', [1, 1.5, 2], 1.5, 0.10],
+  intermediate: ['Intermediate', '1–3 years of consistent training', [0.5, 0.75, 1], 0.75, 0.075],
+  advanced: ['Advanced', '3+ years, close to your natural limit', [0.5, 0.75, 1], 0.5, 0.05],
+};
+const LB_MULT = { sedentary: 14, light: 15, moderate: 16, very: 17, extreme: 18 }; // maintenance ≈ body weight (lb) × 14–18
+const BULK_STEP = 150;      // max calorie change per bulk check-in
+const BULK_DATA_DAYS = 14;  // days of usable logs before maintenance comes from your own data
+const isBulk = g => (g || S.goal) && (g || S.goal).type === 'bulk';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // ---------- state ----------
@@ -218,11 +229,27 @@ function macrosFor(kcal, w) {
 function goalRateKgWeek(w) {
   const g = S.goal;
   if (g.type === 'maintain') return 0;
+  if (g.type === 'bulk') return g.monthPct / 100 * w * 7 / 30.44;
   return (g.type === 'lose' ? -1 : 1) * g.ratePct / 100 * w;
 }
-function computeTargets(E, w) {
+function bulkMaint(E, w, dataDays) {
+  return dataDays >= BULK_DATA_DAYS ? E : w * LB * LB_MULT[S.profile.activity];
+}
+function bulkMacros(kcal, w) {
+  const g = S.goal;
+  const p = r0(w * LB * (g.pLb || 0.85));          // 0.7–1.0 g per lb of body weight
+  const f = r0(kcal * (g.fatPct || 0.25) / 9);     // 20–30 % of calories
+  const c = Math.max(0, r0((kcal - p * 4 - f * 9) / 4)); // carbs fill the rest
+  return { p, c, f };
+}
+function computeTargets(E, w, dataDays = 0) {
   const g = S.goal;
   if (g.mode === 'manual') return Object.assign({ manual: true }, g.manual);
+  if (g.type === 'bulk') {
+    const maint = bulkMaint(E, w, dataDays);
+    const kcal = r0(maint * (1 + g.surplus) / 5) * 5;
+    return Object.assign({ kcal, maint: r0(maint), bulk: true, fresh: true }, bulkMacros(kcal, w));
+  }
   const floor = S.profile.sex === 'male' ? 1500 : 1200;
   let kcal = r0((E + goalRateKgWeek(w) * KCAL_PER_KG / 7) / 5) * 5;
   const floored = kcal < floor;
@@ -260,21 +287,42 @@ function nextCheckin() {
   return k;
 }
 const checkinDue = () => S.goal.mode !== 'manual' && todayKey() >= nextCheckin();
-function previewCheckin() {
+function previewCheckin(fresh) {
   const m = model(), d = latest();
   const prev = S.checkins[S.checkins.length - 1];
   const wkAgo = m.byKey[addDays(d.k, -7)];
   const last7 = m.days.slice(-8, -1).filter(x => x.complete);
-  return {
+  const weighIns = m.days.slice(-7).filter(x => x.w != null).length;
+  const out = {
     date: d.k, E: r0(d.E), trend: r1(d.trend),
     trendChange: wkAgo ? d.trend - wkAgo.trend : null,
     avgIntake: last7.length ? r0(last7.reduce((a, x) => a + x.intake, 0) / last7.length) : null,
-    logged: last7.length, prev, ...computeTargets(d.E, d.trend),
+    logged: last7.length, weighIns, prev, dataDays: m.dataDays, ...computeTargets(d.E, d.trend, m.dataDays),
   };
+  // Lean bulk: after the first week, steer calories by comparing trend gain with the target gain.
+  if (isBulk() && S.goal.mode !== 'manual' && !fresh && prev && prev.bulk && prev.date !== d.k) {
+    const target = goalRateKgWeek(d.trend);
+    out.targetGain = target; out.fresh = false;
+    if (out.trendChange == null || weighIns < 3) {
+      out.adj = 0; out.kcal = prev.kcal;
+      out.why = 'Not enough weigh-ins this week to judge your gain, so calories stay the same. Weigh in at least 3 mornings a week.';
+    } else {
+      const raw = (target - out.trendChange) * KCAL_PER_KG / 7;
+      out.adj = r0(clamp(raw, -BULK_STEP, BULK_STEP) / 5) * 5;
+      out.kcal = prev.kcal + out.adj;
+      const gain = `${out.trendChange >= 0 ? '+' : '−'}${Math.abs(wDisp(out.trendChange)).toFixed(2)} ${unit()}`, tgt = `+${wDisp(target).toFixed(2)} ${unit()}`;
+      out.why = Math.abs(out.adj) < 5 ? `Your trend changed ${gain} this week against a target of ${tgt}. Right on pace, so calories stay the same.`
+        : out.adj > 0 ? `Your trend changed ${gain} this week, slower than the target of ${tgt}. Calories go up ${out.adj} kcal${Math.abs(raw) > BULK_STEP ? ' (the most allowed in one week)' : ''}.`
+        : `Your trend changed ${gain} this week, faster than the target of ${tgt}. Faster gain mostly adds fat, so calories go down ${-out.adj} kcal${Math.abs(raw) > BULK_STEP ? ' (the most allowed in one week)' : ''}.`;
+    }
+    Object.assign(out, bulkMacros(out.kcal, d.trend));
+  }
+  return out;
 }
-function applyCheckin() {
-  const c = previewCheckin();
+function applyCheckin(fresh) {
+  const c = previewCheckin(fresh);
   const rec = { date: c.date, E: c.E, trend: c.trend, kcal: c.kcal, p: c.p, c: c.c, f: c.f };
+  if (c.bulk) Object.assign(rec, { bulk: true, maint: c.maint, adj: c.adj ?? null, gain: c.trendChange, why: c.why || null });
   S.checkins = S.checkins.filter(x => x.date !== c.date).concat(rec).sort((a, b) => a.date < b.date ? -1 : 1);
   save();
 }
@@ -428,7 +476,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 const OB_STEPS = 7;
 function renderOnboarding() {
   const o = ui.ob, st = o.step;
-  const d = o.d || (o.d = { unit: 'kg', sex: 'female', birthYear: '', height: '', ft: '', inch: '', weight: '', bodyFat: '', activity: 'light', type: 'lose', ratePct: 0.5, target: '', diet: 'balanced', protein: 'high' });
+  const d = o.d || (o.d = { unit: 'kg', sex: 'female', birthYear: '', height: '', ft: '', inch: '', weight: '', bodyFat: '', activity: 'light', type: 'lose', ratePct: 0.5, target: '', diet: 'balanced', protein: 'high', exp: 'intermediate', monthPct: 0.75, pLb: 0.85, fatPct: 0.25 });
   const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-act="ob-set" data-k="${k}" data-v="${v}" aria-pressed="${d[k] === v}">${l}</button>`).join('')}</div>`;
   const ch = (k, v, title, sub) => `<button type="button" class="choice" data-act="ob-set" data-k="${k}" data-v="${v}" aria-pressed="${String(d[k]) === String(v)}"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</button>`;
   const inp = (k, ph, mode = 'decimal') => `<input class="input" inputmode="${mode}" data-ob="${k}" value="${esc(d[k])}" placeholder="${ph}">`;
@@ -457,11 +505,22 @@ function renderOnboarding() {
       ${Object.entries(ACTIVITY).map(([k, a]) => ch('activity', k, a[1], a[2])).join('')}`;
   } else if (st === 4) {
     const w = num(d.weight), wk = wIn(w);
-    body = `<h1>Your goal</h1><p class="lead">Rate is set as a percentage of body weight per week, so it scales as you change.</p>
-      <div class="field">${seg('type', [['lose', 'Lose fat'], ['maintain', 'Maintain'], ['gain', 'Build muscle']])}</div>
-      ${d.type === 'maintain' ? '<p class="note">Calories will track your expenditure so your weight stays stable.</p>' :
+    const by = new Date().getFullYear() - (+d.birthYear || 0);
+    body = `<h1>Your goal</h1><p class="lead">${d.type === 'bulk' ? 'A lean bulk gains weight slowly on purpose. How fast depends on how long you have trained.' : 'Rate is set as a percentage of body weight per week, so it scales as you change.'}</p>
+      <div class="field">${seg('type', [['lose', 'Lose fat'], ['maintain', 'Maintain'], ['bulk', 'Lean bulk']])}</div>
+      ${d.type === 'maintain' ? '<p class="note">Calories will track your expenditure so your weight stays stable.</p>' : d.type === 'bulk' ? `
+        <label class="field"><span>Training experience</span></label>${Object.entries(BULK).map(([k, b]) => ch('exp', k, b[0], b[1])).join('')}
+        <label class="field"><span>Target gain per month</span>${seg('monthPct', BULK[d.exp][2].map(r => [r, r + '%']))}</label>
+        <p class="note">${isFinite(wk) ? `≈ ${wDisp(wk * d.monthPct / 100).toFixed(2)} ${u} per month. ` : ''}${d.exp === 'beginner' ? 'Beginners can build muscle fast, so 1–2 % a month is mostly lean mass.' : 'Muscle can’t be force-fed. Near your limit, gaining faster than 0.5–1 % a month mostly adds fat.'}</p>
+        ${by && by < 18 ? '<p class="note" style="color:var(--over)">Under 18? Talk to a doctor or dietitian before bulking.</p>' : ''}` :
         `<label class="field"><span>Weekly rate</span></label>${RATES[d.type].map(r => ch('ratePct', r, `${r}% per week`, isFinite(wk) ? `≈ ${(wDisp(wk) * r / 100).toFixed(2)} ${u} per week · ${fmt(wk * r / 100 * KCAL_PER_KG / 7)} kcal/day ${d.type === 'lose' ? 'deficit' : 'surplus'}` : '')).join('')}
          <label class="field"><span>Goal weight (${u}, optional)</span>${inp('target', '')}</label>`}`;
+  } else if (st === 5 && d.type === 'bulk') {
+    body = `<h1>Your macros</h1><p class="lead">Set in this order: protein first, then fat, and carbs fill the rest.</p>
+      <label class="field"><span>Protein, grams per lb of body weight</span>${seg('pLb', [[0.7, '0.7 g'], [0.85, '0.85 g'], [1, '1.0 g']])}</label>
+      <p class="note">0.7–1 g per lb (1.6–2.2 g/kg) covers muscle growth. 0.85 g is a solid middle.</p>
+      <label class="field"><span>Fat share of calories</span>${seg('fatPct', [[0.2, '20%'], [0.25, '25%'], [0.3, '30%']])}</label>
+      <p class="note">Too little fat can lower testosterone; too much is stored as body fat more easily than carbs.</p>`;
   } else if (st === 5) {
     body = `<h1>How you like to eat</h1>
       <label class="field"><span>Diet style</span></label>${Object.entries(DIETS).map(([k, x]) => ch('diet', k, x[0], x[1])).join('')}
@@ -471,13 +530,14 @@ function renderOnboarding() {
     const p = buildProfile(d);
     const prev = S.profile, prevG = S.goal;
     S.profile = p.profile; S.goal = p.goal;
-    const E = initialTDEE(p.profile.startWeight);
+    const E = p.goal.type === 'bulk' ? p.profile.startWeight * LB * LB_MULT[p.profile.activity] : initialTDEE(p.profile.startWeight);
     const t = computeTargets(E, p.profile.startWeight);
     S.profile = prev; S.goal = prevG;
     body = `<h1>Your starting plan</h1><p class="lead">This is an educated guess. Log consistently and the weekly check-in will correct it to your real numbers.</p>
       <div class="hero"><div class="big num">${fmt(t.kcal)}</div><div class="big-l">kcal per day</div>
       <div class="macros">${macroStatic('Protein', t.p, 'var(--pro)')}${macroStatic('Carbs', t.c, 'var(--carb)')}${macroStatic('Fat', t.f, 'var(--fat)')}</div></div>
-      <div class="card"><div class="kv"><span>Estimated expenditure</span><b>${fmt(E)} kcal</b></div>
+      <div class="card"><div class="kv"><span>${p.goal.type === 'bulk' ? 'Estimated maintenance' : 'Estimated expenditure'}</span><b>${fmt(t.maint || E)} kcal</b></div>
+      ${p.goal.type === 'bulk' ? `<div class="kv"><span>Surplus</span><b>+${r0(p.goal.surplus * 100 * 10) / 10}% · +${fmt(t.kcal - t.maint)} kcal</b></div>` : ''}
       <div class="kv"><span>Goal</span><b>${goalLabel(p.goal)}</b></div>
       <div class="kv"><span>Check-in</span><b>Every ${DAYS[p.goal.checkinDay]}</b></div></div>
       ${t.floored ? '<p class="note">Your target was raised to a safe minimum. Consider a slower rate.</p>' : ''}`;
@@ -496,7 +556,7 @@ function buildProfile(d) {
   const t = num(d.target);
   return {
     profile: { sex: d.sex, birthYear: +d.birthYear, heightCm, startWeight: w, bodyFat: num(d.bodyFat) > 3 ? num(d.bodyFat) : null, activity: d.activity, start: todayKey() },
-    goal: { mode: 'coached', type: d.type, ratePct: d.type === 'maintain' ? 0 : +d.ratePct, target: isFinite(t) ? (lb ? t / LB : t) : null, diet: d.diet, protein: d.protein, checkinDay: pkey(todayKey()).getDay(), manual: null },
+    goal: { mode: 'coached', type: d.type, ratePct: d.type === 'lose' || d.type === 'gain' ? +d.ratePct : 0, exp: d.exp, monthPct: +d.monthPct, surplus: BULK[d.exp][4], pLb: +d.pLb, fatPct: +d.fatPct, target: isFinite(t) ? (lb ? t / LB : t) : null, diet: d.diet, protein: d.protein, checkinDay: pkey(todayKey()).getDay(), manual: null },
   };
 }
 function validateStep() {
@@ -513,16 +573,17 @@ function finishOnboarding() {
   const p = buildProfile(ui.ob.d);
   S.settings.unit = ui.ob.d.unit;
   S.profile = p.profile; S.goal = p.goal;
-  S.init = r0(initialTDEE(p.profile.startWeight));
+  S.init = r0(p.goal.type === 'bulk' ? p.profile.startWeight * LB * LB_MULT[p.profile.activity] : initialTDEE(p.profile.startWeight));
   S.weights[todayKey()] = r1(p.profile.startWeight * 10) / 10;
   S.checkins = [];
   const t = computeTargets(S.init, p.profile.startWeight);
-  S.checkins.push({ date: todayKey(), E: S.init, trend: p.profile.startWeight, kcal: t.kcal, p: t.p, c: t.c, f: t.f, initial: true });
+  S.checkins.push({ date: todayKey(), E: S.init, trend: p.profile.startWeight, kcal: t.kcal, p: t.p, c: t.c, f: t.f, initial: true, bulk: !!t.bulk, maint: t.maint });
   save(); ui.view = 'today'; render();
 }
 function goalLabel(g) {
   if (g.mode === 'manual') return 'Manual targets';
   if (g.type === 'maintain') return 'Maintain weight';
+  if (g.type === 'bulk') return 'Lean bulk +' + g.monthPct + '% / month';
   return (g.type === 'lose' ? 'Lose ' : 'Gain ') + g.ratePct + '% / week';
 }
 
@@ -739,6 +800,7 @@ function viewPlan() {
     <div class="big num">${fmt(cur.kcal)}</div><div class="big-l">kcal per day</div>
     <div class="macros">${macroStatic('Protein', cur.p, 'var(--pro)')}${macroStatic('Carbs', cur.c, 'var(--carb)')}${macroStatic('Fat', cur.f, 'var(--fat)')}</div>
   </section>
+  ${isBulk(g) && g.mode !== 'manual' ? bulkCard(cur, L) : ''}
   <section class="card"><div class="card-h"><h2>Training-day calories</h2></div>
     <p class="note" style="margin-top:0">Eat more on the days you train and a little less on rest days. Your weekly total stays the same, so your rate of progress doesn't change. The extra calories go to carbs to fuel your sessions.</p>
     <div class="seg" style="margin-top:12px">${[[0, 'Off'], [0.1, '+10%'], [0.15, '+15%'], [0.2, '+20%']].map(([v, l]) => `<button data-act="shift" data-v="${v}" aria-pressed="${sh === v}">${l}</button>`).join('')}</div>
@@ -751,7 +813,7 @@ function viewPlan() {
     <div class="kv"><span>Goal</span><b>${goalLabel(g)}</b></div>
     ${g.mode !== 'manual' && g.type !== 'maintain' ? `<div class="kv"><span>Target pace</span><b>${goalRateKgWeek(L.trend) > 0 ? '+' : ''}${wDisp(goalRateKgWeek(L.trend)).toFixed(2)} ${unit()} / week</b></div>` : ''}
     ${gw ? `<div class="kv"><span>Goal weight</span><b>${wFmt(gw)} ${unit()}${eta && isFinite(eta) && (g.type === 'lose' ? L.trend > gw : L.trend < gw) ? ` · ~${Math.ceil(eta)} weeks` : ''}</b></div>` : ''}
-    ${g.mode !== 'manual' ? `<div class="kv"><span>Diet · protein</span><b>${DIETS[g.diet][0]} · ${PROTEIN[g.protein][0]}</b></div>
+    ${g.mode !== 'manual' ? `<div class="kv"><span>${isBulk(g) ? 'Macros' : 'Diet · protein'}</span><b>${isBulk(g) ? `${g.pLb} g/lb protein · ${r0(g.fatPct * 100)}% fat` : DIETS[g.diet][0] + ' · ' + PROTEIN[g.protein][0]}</b></div>
     <div class="kv"><span>Next check-in</span><b>${esc(niceDate(nextCheckin(), true))}</b></div>` : ''}
     ${g.mode !== 'manual' ? `<div class="row-btns"><button class="btn sm" data-act="checkin">Run check-in now</button></div>` : ''}
   </section>
@@ -761,6 +823,50 @@ function viewPlan() {
   <section class="card"><h2>How targets are set</h2>
     <p class="note">Each day Kalibra compares the calories you logged over the last 4 weeks with how your weight changed. 1 kg of body-weight change ≈ 7,700 kcal, so the difference reveals what you really burn. That number moves gradually to ignore water swings. At each weekly check-in your calories are set to expenditure ${g.type === 'lose' ? 'minus' : g.type === 'gain' ? 'plus' : '±'} your goal rate, and macros follow your diet style.</p>
     <p class="note">For the best accuracy: log everything (or mark the day incomplete), and weigh in most mornings under the same conditions.</p></section>`;
+}
+
+// Each number of the lean bulk with a one-line reason.
+function bulkCard(cur, L) {
+  const g = S.goal, m = model(), w = L.trend;
+  const last = S.checkins[S.checkins.length - 1];
+  const maint = last.maint || r0(bulkMaint(L.E, w, m.dataDays));
+  const measured = m.dataDays >= BULK_DATA_DAYS;
+  const row = (k, v, why) => `<div class="why"><div class="why-h"><span>${k}</span><b class="num">${v}</b></div><p>${why}</p></div>`;
+  const lbs = w * LB;
+  return `<section class="card"><div class="card-h"><h2>Your lean bulk</h2><a class="link" data-act="bulk-guide">Bulking guide</a></div>
+    ${row('Target gain', `+${g.monthPct}% / month · ${wDisp(w * g.monthPct / 100).toFixed(2)} ${unit()}`, g.exp === 'beginner'
+      ? 'In your first year you can build muscle quickly, so 1–2 % a month is mostly lean mass.'
+      : 'How fast you gain decides how much fat you add. Muscle can’t be force-fed, so after year one 0.5–1 % a month is the sweet spot.')}
+    ${row('Maintenance', `${fmt(maint)} kcal`, measured
+      ? `Measured from ${m.dataDays} days of your logged intake and trend weight. It rises as you gain, so it’s re-measured every week.`
+      : `Estimated as ${r0(lbs)} lb × ${LB_MULT[S.profile.activity]} for your activity level. After ${BULK_DATA_DAYS} days of logs it switches to your measured number (${m.dataDays}/${BULK_DATA_DAYS} so far).`)}
+    ${row('Calories', `${fmt(cur.kcal)} kcal`, last.adj != null && !last.initial && last.why
+      ? esc(last.why)
+      : `Maintenance plus a ${r1(g.surplus * 100)} % surplus. Enough to fuel muscle growth without the extra fat of a dirty bulk. Weekly check-ins fine-tune it by up to ±${BULK_STEP} kcal.`)}
+    ${row('Protein', `${cur.p} g`, `${g.pLb} g per lb of body weight. 0.7–1 g/lb (1.6–2.2 g/kg) supports muscle growth.`)}
+    ${row('Fat', `${cur.f} g`, `${r0(g.fatPct * 100)} % of calories. Enough to support hormones; more than ~30 % is stored as fat more easily than carbs.`)}
+    ${row('Carbs', `${cur.c} g`, 'Everything that’s left. Carbs fuel hard training — the stimulus that turns the surplus into muscle.')}
+    ${!measured ? '<p class="note">Numbers marked as estimates firm up after two weeks of logging food and weight.</p>' : ''}
+  </section>`;
+}
+function openBulkGuide() {
+  const sec = (h, body) => `<section class="card guide"><h2>${h}</h2>${body}</section>`;
+  const exp = S.goal && S.goal.exp;
+  openSheet('Bulking guide', `
+    <p class="mute" style="margin:0">How to gain muscle with as little fat as possible.</p>
+    ${sec('Why bulk', '<p>A calorie surplus builds more muscle than eating at maintenance or recomping. You can still grow without one, but muscle is a lower priority for your body when energy is short. Dirty bulks (eating 50–100 % over maintenance) do build muscle, but add far more fat than muscle. The answer is a controlled surplus.</p>')}
+    ${sec('1 · Rate of gain', `<p>How much fat you gain depends mostly on how fast you gain weight.</p>
+      <div class="gt"><span>Beginner, under ~1 year</span><b>1–2 % / month</b><span>Intermediate or advanced</span><b>0.5–1 % / month</b></div>
+      <p>A beginner may gain almost all muscle. Near your natural limit, expect about half muscle, half fat — that's fine. A slow cut afterwards removes the fat and keeps most of the muscle.</p>`)}
+    ${sec('2 · Calories', '<p>Find maintenance — the intake where your weight is stable. Best: log food and weight daily for about two weeks. Quick estimate: body weight in lb × 14–18. Then eat 5–10 % above it.</p><p>Check your trend weight each week and adjust if you gain faster or slower than planned. Maintenance rises as you gain, so it keeps being re-measured.</p>')}
+    ${sec('3 · Macros', '<p><b>Protein</b> 0.7–1 g per lb (1.6–2.2 g/kg). <b>Fat</b> 20–30 % of calories. <b>Carbs</b> fill the rest.</p><p>Once macros are tracked, food choice is flexible — treats fit if they fit your totals. Example day: egg whites, egg, vegetables, oats and berries · lean meat, rice, Greek yogurt and fruit before training · protein shake and a banana after · a flexible dinner · Greek yogurt, honey and peanut butter before bed.</p>')}
+    ${sec('4 · Training', `<p>Slacking in the gym during a bulk is the surest way to gain mostly fat.</p>
+      <div class="lvl ${exp === 'beginner' ? 'me' : ''}"><b>Beginner (year 1)</b><p>Learn technique on the basic lifts and push hard with good form. Any split works. At least 3 gym days a week; 4–5 is likely best.</p></div>
+      <div class="lvl ${exp === 'intermediate' ? 'me' : ''}"><b>Intermediate (1–3 years)</b><p>More volume than as a beginner, but intensity first: about 8–15 hard sets per muscle per week. Big muscles like the back can take more. Consider moving off a bro split to avoid junk volume.</p></div>
+      <div class="lvl ${exp === 'advanced' ? 'me' : ''}"><b>Advanced (3+ years)</b><p>Specialize: raise volume 20–40 % for one or two lagging muscles at a time (for example delts from 15 to 18–20 sets a week). Lengthened partials and other advanced techniques for the last gains.</p></div>`)}
+    ${sec('5 · Cardio', '<p>Yes, in moderation. "Cardio kills gains" comes from outdated, low-quality evidence. Better conditioning helps you handle more training volume, especially on leg days. Desk job: 2–3 moderate sessions a week, like a brisk walk or casual sport. Very active job: extra cardio may not be needed.</p>')}
+    ${sec('6 · Supplements', '<p><b>Core:</b> creatine 5 g a day · protein powder as needed to hit protein · about 200 mg caffeine before training if it doesn\'t hurt your sleep.</p><p><b>Optional:</b> fish oil (~2 g EPA + DHA a day), magnesium before bed, vitamin D if you get little sun, a multivitamin.</p>')}
+    <p class="note">Based on Jeff Nippard, “How To Bulk Like A Pro (Using Science)”. The presenter co-owns MacroFactor; this advice doesn't depend on any app. General information, not medical advice — if you have a medical condition, a history of disordered eating, or are under 18, get individual advice.</p>`, { full: true });
 }
 
 function viewProfile() {
@@ -1035,6 +1141,8 @@ function openCheckin() {
       <div class="kv"><span>Goal pace</span><b>${exp >= 0 ? '+' : ''}${wDisp(exp).toFixed(2)} ${unit()} / week</b></div>
       <div class="kv"><span>Average intake</span><b>${c.avgIntake == null ? '—' : fmt(c.avgIntake) + ' kcal'} <span class="mute" style="font-weight:500">(${c.logged}/7 days logged)</span></b></div>
     </div>
+    ${c.why ? `<div class="explain">${icon('bolt')}<p>${esc(c.why)}</p></div>` : ''}
+    ${c.bulk && c.fresh ? `<div class="explain">${icon('bolt')}<p>Maintenance ${fmt(c.maint)} kcal ${c.dataDays >= BULK_DATA_DAYS ? 'measured from your logs' : 'estimated from body weight'} + ${r1(S.goal.surplus * 100)} % surplus.</p></div>` : ''}
     ${c.floored ? '<p class="note">Your target hit the minimum safe intake. A slower rate would be easier to sustain.</p>' : ''}
     ${c.logged < 5 ? '<p class="note">Fewer than 5 complete days were logged this week, so the expenditure estimate leaned on earlier data.</p>' : ''}
     <div class="row-btns" style="margin-top:16px"><button class="btn block" id="ca">Apply new targets</button></div>`);
@@ -1056,19 +1164,29 @@ function openGoal() {
         <label class="field"><span>Carbs g</span><input class="input num" data-m="c" inputmode="decimal" value="${g.manual.c}"></label>
         <label class="field"><span>Fat g</span><input class="input num" data-m="f" inputmode="decimal" value="${g.manual.f}"></label>
         <label class="field"><span>Calories</span><input class="input num" id="gk" value="${fmt(g.manual.p * 4 + g.manual.c * 4 + g.manual.f * 9)}" disabled></label></div>` : `
-      <label class="field"><span>Goal</span>${seg('type', [['lose', 'Lose'], ['maintain', 'Maintain'], ['gain', 'Gain']])}</label>
-      ${g.type !== 'maintain' ? `<label class="field"><span>Rate (% of body weight per week)</span>${seg('ratePct', RATES[g.type].map(r => [r, r + '%']))}</label>
+      <label class="field"><span>Goal</span>${seg('type', [['lose', 'Lose'], ['maintain', 'Maintain'], ['bulk', 'Lean bulk']].concat(g.type === 'gain' ? [['gain', 'Gain']] : []))}</label>
+      ${g.type === 'bulk' ? `
+        <label class="field"><span>Training experience</span>${seg('exp', Object.entries(BULK).map(([k, b]) => [k, b[0]]))}</label>
+        <label class="field"><span>Target gain per month</span>${seg('monthPct', BULK[g.exp][2].map(r => [r, r + '%']))}</label>
+        <p class="note">≈ ${wDisp(L.trend * g.monthPct / 100).toFixed(2)} ${unit()} per month</p>
+        <label class="field"><span>Surplus over maintenance</span>${seg('surplus', [[0.05, '5%'], [0.075, '7.5%'], [0.1, '10%']])}</label>
+        <label class="field"><span>Protein per lb of body weight</span>${seg('pLb', [[0.7, '0.7 g'], [0.85, '0.85 g'], [1, '1.0 g']])}</label>
+        <label class="field"><span>Fat share of calories</span>${seg('fatPct', [[0.2, '20%'], [0.25, '25%'], [0.3, '30%']])}</label>
+        <label class="field"><span>Goal weight (${unit()}, optional)</span><input class="input num" id="gt" inputmode="decimal" value="${g.target ? wFmt(g.target) : ''}"></label>
+        <p class="note">Saving starts a fresh bulk: maintenance + surplus. Weekly check-ins then adjust from your trend weight.</p>` : g.type !== 'maintain' ? `<label class="field"><span>Rate (% of body weight per week)</span>${seg('ratePct', RATES[g.type].map(r => [r, r + '%']))}</label>
         <p class="note">≈ ${wDisp(L.trend * (g.ratePct || 0) / 100).toFixed(2)} ${unit()} per week</p>
         <label class="field"><span>Goal weight (${unit()}, optional)</span><input class="input num" id="gt" inputmode="decimal" value="${g.target ? wFmt(g.target) : ''}"></label>` : ''}
-      <label class="field"><span>Diet style</span>${seg('diet', Object.entries(DIETS).map(([k, x]) => [k, x[0]]))}</label>
-      <label class="field"><span>Protein</span>${seg('protein', Object.entries(PROTEIN).map(([k, x]) => [k, x[0]]))}</label>`}
+      ${g.type === 'bulk' ? '' : `<label class="field"><span>Diet style</span>${seg('diet', Object.entries(DIETS).map(([k, x]) => [k, x[0]]))}</label>
+      <label class="field"><span>Protein</span>${seg('protein', Object.entries(PROTEIN).map(([k, x]) => [k, x[0]]))}</label>`}`}
       <div class="row-btns" style="margin-top:20px"><button class="btn block" id="gs">Save and update targets</button></div>`;
   };
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-k]'); if (!b) return;
-    const k = b.dataset.k; let v = b.dataset.v; if (k === 'ratePct') v = +v;
+    const k = b.dataset.k; let v = b.dataset.v; if (['ratePct', 'monthPct', 'surplus', 'pLb', 'fatPct'].includes(k)) v = +v;
     readGoalInputs(); g[k] = v;
-    if (k === 'type' && v !== 'maintain' && !RATES[v].includes(g.ratePct)) g.ratePct = RATES[v][1] || RATES[v][0];
+    if (k === 'type' && RATES[v] && !RATES[v].includes(g.ratePct)) g.ratePct = RATES[v][1] || RATES[v][0];
+    if (k === 'type' && v === 'bulk' && !g.exp) Object.assign(g, { exp: 'intermediate', monthPct: 0.75, surplus: 0.075, pLb: 0.85, fatPct: 0.25 });
+    if (k === 'exp') { g.monthPct = BULK[v][3]; g.surplus = BULK[v][4]; }
     draw();
   });
   el.addEventListener('input', e => {
@@ -1080,10 +1198,10 @@ function openGoal() {
   el.addEventListener('click', e => {
     if (e.target.id !== 'gs') return;
     readGoalInputs();
-    if (g.type === 'maintain') g.ratePct = 0;
+    if (g.type === 'maintain' || g.type === 'bulk') g.ratePct = 0;
     if (g.mode === 'manual') g.manual.kcal = r0(g.manual.p * 4 + g.manual.c * 4 + g.manual.f * 9);
     S.goal = g;
-    if (g.mode !== 'manual') applyCheckin(); else save();
+    if (g.mode !== 'manual') applyCheckin(true); else save();
     closeSheet(); render(); toast('Plan updated');
   });
   draw();
@@ -1151,6 +1269,7 @@ const actions = {
   weight: el => openWeight(el.dataset.k),
   range: el => { ui.range = +el.dataset.n; render(); },
   checkin: () => openCheckin(),
+  'bulk-guide': () => openBulkGuide(),
   goal: () => openGoal(),
   'edit-profile': () => openEditProfile(),
   'set-unit': el => { S.settings.unit = el.dataset.v; save(); render(); },
@@ -1169,7 +1288,14 @@ const actions = {
     i.click();
   },
   reset: () => { if (confirm('Delete all food logs, weigh-ins and settings from this device? This cannot be undone.')) { S = blank(); save(); ui.ob = { step: 0 }; render(); } },
-  'ob-set': el => { const d = ui.ob.d; readObInputs(); let v = el.dataset.v; if (el.dataset.k === 'ratePct') v = +v; d[el.dataset.k] = v; if (el.dataset.k === 'type' && v !== 'maintain' && !RATES[v].includes(d.ratePct)) d.ratePct = v === 'lose' ? 0.5 : 0.25; renderOnboarding(); },
+  'ob-set': el => {
+    const d = ui.ob.d, k = el.dataset.k; readObInputs(); let v = el.dataset.v;
+    if (['ratePct', 'monthPct', 'pLb', 'fatPct'].includes(k)) v = +v;
+    d[k] = v;
+    if (k === 'type' && RATES[v] && !RATES[v].includes(d.ratePct)) d.ratePct = v === 'lose' ? 0.5 : 0.25;
+    if (k === 'exp') d.monthPct = BULK[v][3];
+    renderOnboarding();
+  },
   'ob-back': () => { readObInputs(); ui.ob.step--; renderOnboarding(); },
   'ob-next': () => {
     readObInputs();

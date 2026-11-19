@@ -9,7 +9,7 @@ window.KAL_MUSCLES = {
 window.KAL_EXERCISES = [
   // Chest
   ['bench', 'Bench press', 'chest', 'triceps,frontdelt', 'Barbell', 'w'],
-  ['inclinebench', 'Incline bench press', 'chest', 'frontdelt,triceps', 'Barbell', 'w'],
+  ['inclinebench', 'Incline bench press (45°)', 'chest', 'frontdelt,triceps', 'Barbell', 'w'],
   ['dbbench', 'Dumbbell bench press', 'chest', 'triceps,frontdelt', 'Dumbbell', 'w'],
   ['dbincline', 'Incline dumbbell press', 'chest', 'frontdelt,triceps', 'Dumbbell', 'w'],
   ['chestpress', 'Machine chest press', 'chest', 'triceps,frontdelt', 'Machine', 'w'],
@@ -28,6 +28,7 @@ window.KAL_EXERCISES = [
   ['pullup', 'Pull-up', 'lats', 'biceps,upperback', 'Bodyweight', 'bw'],
   ['chinup', 'Chin-up', 'lats', 'biceps', 'Bodyweight', 'bw'],
   ['latpulldown', 'Lat pulldown', 'lats', 'biceps,upperback', 'Cable', 'w'],
+  ['npulldown', 'Close neutral-grip lat pulldown', 'lats', 'biceps,upperback', 'Cable', 'w'],
   ['sapulldown', 'Straight-arm pulldown', 'lats', '', 'Cable', 'w'],
   ['facepull', 'Face pull', 'reardelt', 'upperback,traps', 'Cable', 'w'],
   ['shrug', 'Dumbbell shrug', 'traps', 'forearms', 'Dumbbell', 'w'],
@@ -40,6 +41,7 @@ window.KAL_EXERCISES = [
   ['cablelateral', 'Cable lateral raise', 'sidedelt', '', 'Cable', 'w'],
   ['reardeltfly', 'Rear delt fly', 'reardelt', 'upperback', 'Dumbbell', 'w'],
   ['revpecdeck', 'Reverse pec deck', 'reardelt', 'upperback', 'Machine', 'w'],
+  ['revpecdeck1', 'One-arm reverse pec deck (side-on)', 'reardelt', 'upperback', 'Machine', 'w'],
   // Arms
   ['bbcurl', 'Barbell curl', 'biceps', 'forearms', 'Barbell', 'w'],
   ['dbcurl', 'Dumbbell curl', 'biceps', 'forearms', 'Dumbbell', 'w'],
@@ -47,13 +49,16 @@ window.KAL_EXERCISES = [
   ['inclinecurl', 'Incline dumbbell curl', 'biceps', '', 'Dumbbell', 'w'],
   ['preacher', 'Preacher curl', 'biceps', '', 'Machine', 'w'],
   ['cablecurl', 'Cable curl', 'biceps', 'forearms', 'Cable', 'w'],
+  ['bayesian', 'Bayesian cable curl', 'biceps', '', 'Cable', 'w'],
   ['pushdown', 'Triceps pushdown', 'triceps', '', 'Cable', 'w'],
   ['ohext', 'Overhead cable extension', 'triceps', '', 'Cable', 'w'],
   ['skull', 'Skull crusher', 'triceps', '', 'Barbell', 'w'],
+  ['kickback', 'Cable kickback, leaning back', 'triceps', '', 'Cable', 'w'],
   ['cgbench', 'Close-grip bench press', 'triceps', 'chest,frontdelt', 'Barbell', 'w'],
   ['wristcurl', 'Wrist curl', 'forearms', '', 'Dumbbell', 'w'],
   // Legs
   ['squat', 'Back squat', 'quads', 'glutes,adductors,lowerback', 'Barbell', 'w'],
+  ['smithsquat', 'Smith machine squat', 'quads', 'glutes,adductors', 'Machine', 'w'],
   ['frontsquat', 'Front squat', 'quads', 'glutes,upperback', 'Barbell', 'w'],
   ['hacksquat', 'Hack squat', 'quads', 'glutes', 'Machine', 'w'],
   ['legpress', 'Leg press', 'quads', 'glutes,adductors', 'Machine', 'w'],
@@ -88,6 +93,12 @@ window.KAL_EXERCISES = [
 
 // Starter programs. Each day: [name, [[exerciseId, sets, repMin, repMax], ...]]
 window.KAL_PROGRAMS = [
+  ['Top picks upper / lower', '4 days a week · built from the best exercise for each muscle', [
+    ['Upper A', [['inclinebench', 3, 6, 10], ['csrow', 3, 8, 12], ['npulldown', 3, 8, 12], ['cablelateral', 3, 8, 12], ['bayesian', 2, 10, 15], ['ohext', 2, 10, 15]]],
+    ['Lower A', [['smithsquat', 3, 6, 10], ['seatedcurl', 3, 8, 12], ['legext', 2, 10, 15], ['calfraise', 3, 10, 15], ['cablecrunch', 2, 10, 15]]],
+    ['Upper B', [['cablefly', 3, 12, 20], ['npulldown', 3, 8, 12], ['csrow', 3, 8, 12], ['revpecdeck1', 3, 12, 15], ['bayesian', 2, 10, 15], ['kickback', 2, 12, 15]]],
+    ['Lower B', [['seatedcurl', 3, 8, 12], ['smithsquat', 3, 6, 10], ['bss', 2, 8, 12], ['seatedcalf', 3, 12, 20], ['hlr', 2, 10, 15]]],
+  ]],
   ['Full body', '3 days a week · best for beginners and busy weeks', [
     ['Full body A', [['squat', 3, 5, 8], ['bench', 3, 6, 10], ['bbrow', 3, 8, 12], ['lateral', 2, 12, 20], ['hammercurl', 2, 10, 15]]],
     ['Full body B', [['rdl', 3, 6, 10], ['ohp', 3, 6, 10], ['latpulldown', 3, 8, 12], ['legpress', 2, 10, 15], ['pushdown', 2, 10, 15]]],
@@ -102,3 +113,34 @@ window.KAL_PROGRAMS = [
     ['Legs', [['squat', 3, 5, 8], ['rdl', 3, 6, 10], ['legpress', 2, 10, 15], ['lyingcurl', 2, 10, 15], ['calfraise', 3, 10, 15]]],
   ]],
 ];
+
+// Coaching data. Top picks per muscle and their cues are from Will Tennyson ft. Jeff Nippard,
+// "The Best Exercises For Every Muscle". stretch / overload ratings (1 low – 3 high) for every
+// exercise and the rep ranges marked (added) are our own defaults, used to rank swap suggestions.
+// id: [stretch, overload, repMin, repMax, pick label or '', cues]
+window.KAL_EX_INFO = {
+  smithsquat: [3, 3, 6, 10, 'Top pick · quads + glutes', 'Lets you go closer to failure with less sense of risk than a free squat. Option: lengthened partials — only come about halfway up.'],
+  seatedcurl: [3, 3, 8, 12, 'Top pick · hamstrings', 'Lean your torso forward for more stretch, as long as it still feels stable. Seated curls grew about 1.5× more hamstring than lying curls in one study.'],
+  inclinebench: [2, 3, 6, 10, 'Top pick · whole chest', 'Bench at about 45°. Press straight up, not out in front of you. Use safeties. Grows the mid and lower chest as well as the upper.'],
+  cablefly: [3, 2, 12, 20, 'Top pick · chest stretch', 'Get deep into the stretch. Higher reps, and take at least one set to failure.'],
+  csrow: [3, 3, 8, 12, 'Top pick · back (horizontal)', 'Let your shoulder blades spread at the bottom, squeeze them together at the top. Keep your chest on the pad every week.'],
+  npulldown: [3, 3, 8, 12, 'Top pick · back (vertical)', 'Drive your elbows straight down "into your pockets" for lats. Lean back and pull elbows back to hit more mid-back.'],
+  cablelateral: [3, 2, 8, 12, 'Top pick · side delts', 'Raise the pulley so the cable meets your arm at 90° near the bottom of the rep, where the delt is stretched.'],
+  revpecdeck1: [3, 2, 12, 15, 'Top pick · rear delts', 'Stand turned sideways, reach across your body to pre-stretch, then sweep out.'],
+  bayesian: [3, 2, 10, 15, 'Top pick · biceps', 'Set the cable behind you at about hand height, so peak tension comes in the stretch.'],
+  ohext: [3, 2, 10, 15, 'Top pick · triceps stretch', 'Arm overhead stretches the long head — the biggest of the three triceps heads.'],
+  kickback: [1, 2, 12, 15, 'Top pick · triceps contraction', 'Lean back so your upper arm goes behind your torso, where the long head fully contracts.'],
+  bench: [2, 3, 6, 10], dbbench: [3, 2, 8, 12], dbincline: [3, 2, 8, 12], chestpress: [2, 3, 8, 12], dbfly: [3, 1, 10, 15], pecdeck: [3, 2, 10, 15], dips: [3, 2, 6, 12], pushup: [2, 1, 10, 20],
+  deadlift: [1, 3, 3, 6], bbrow: [2, 3, 6, 10], dbrow: [3, 2, 8, 12], tbarrow: [2, 3, 8, 12], seatedrow: [3, 3, 8, 12],
+  pullup: [3, 1, 5, 10, '', 'Hard to overload steadily because your body weight changes. A pulldown is easier to take to failure.'], chinup: [3, 1, 5, 10],
+  latpulldown: [3, 3, 8, 12], sapulldown: [2, 2, 10, 15], facepull: [2, 2, 12, 20], shrug: [1, 2, 10, 15], backext: [2, 2, 10, 15],
+  ohp: [2, 3, 5, 8], dbpress: [2, 2, 8, 12], machinepress: [2, 3, 8, 12], lateral: [1, 2, 12, 20, '', 'A dumbbell gives little tension at the bottom, where the delt is stretched. The cable version fixes that.'],
+  reardeltfly: [1, 2, 12, 20], revpecdeck: [2, 2, 12, 15],
+  bbcurl: [1, 3, 8, 12], dbcurl: [1, 2, 8, 12], hammercurl: [1, 2, 8, 12], inclinecurl: [3, 2, 8, 12], preacher: [3, 2, 8, 12], cablecurl: [2, 2, 10, 15],
+  pushdown: [1, 3, 10, 15], skull: [2, 2, 8, 12], cgbench: [1, 3, 6, 10], wristcurl: [2, 2, 12, 20],
+  squat: [3, 3, 5, 8, '', 'Covers quads and glutes, but barely changes hamstring length — train hamstrings separately.'], frontsquat: [3, 2, 5, 8], hacksquat: [3, 3, 8, 12], legpress: [2, 3, 8, 15],
+  bss: [3, 2, 8, 12], lunge: [3, 2, 8, 12], stepup: [2, 2, 8, 12], legext: [2, 3, 10, 15],
+  rdl: [3, 3, 6, 10, '', 'Misses the hamstring head that doesn’t cross the hip — pair it with a leg curl.'], dbrdl: [3, 2, 8, 12],
+  lyingcurl: [2, 3, 10, 15], hipthrust: [1, 3, 8, 12], abductor: [2, 2, 12, 20], adductor: [2, 2, 12, 20],
+  calfraise: [3, 3, 10, 15], seatedcalf: [2, 3, 12, 20], hlr: [2, 1, 10, 15], cablecrunch: [2, 3, 10, 15], abwheel: [3, 1, 8, 15],
+};

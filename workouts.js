@@ -15,6 +15,8 @@ const T = () => K.S.train;
 const DEFAULT_RIR = 2;
 const STRENGTH_MET = 5.0; // Compendium: resistance training, multiple exercises, 8–15 reps, moderate–vigorous
 
+const INFO = window.KAL_EX_INFO || {};
+const info = id => { const r = INFO[id]; return r ? { stretch: r[0], overload: r[1], repMin: r[2], repMax: r[3], pick: r[4] || '', cues: r[5] || '' } : null; };
 const ex = id => EX[id] || T().custom.find(c => c.id === id) || { id, name: 'Exercise', primary: 'abs', secondary: [], equip: '', kind: 'w' };
 const allEx = () => T().custom.concat(Object.values(EX));
 const isLift = e => e.kind === 'w' || e.kind === 'bw';
@@ -68,6 +70,16 @@ function bestE1(exId, before = Infinity) {
   T().sessions.forEach(s => { if (s.start < before) s.exercises.forEach(x => { if (x.exId === exId) work(x.sets).forEach(st => { b = Math.max(b, setE1(st)); }); }); });
   return b;
 }
+// Progress against the same set last time. One extra rep counts — that's how isolation lifts move for months.
+function setGain(s, prev, e) {
+  if (!prev || s.warm) return '';
+  if (e.kind === 'c') return s.min > prev.min ? `+${r1(s.min - prev.min)} min` : '';
+  if (e.kind === 't') return s.sec > prev.sec ? `+${s.sec - prev.sec} s` : '';
+  const w = s.w || 0, pw = prev.w || 0, step = fromDisp(inc(e)) / 2;
+  if (w > pw + 0.01) return `+${wTxt(w - pw)} ${uLabel()}`;
+  if (Math.abs(w - pw) <= step && s.reps > prev.reps) return `+${s.reps - prev.reps} rep${s.reps - prev.reps > 1 ? 's' : ''}`;
+  return '';
+}
 // Suggested load and reps for today: add reps inside the range; once every set reaches the top of the
 // range, move up in load to the weight your estimated 1RM supports at the bottom of the range.
 function suggest(x) {
@@ -120,7 +132,8 @@ function startWorkout(tpl) {
 }
 function newEntry(exId, te) {
   const e = ex(exId);
-  const x = { uid: uid(), exId, repMin: te ? te.repMin : 8, repMax: te ? te.repMax : 12, rir: DEFAULT_RIR, rest: te ? te.rest : restFor(e), sets: [] };
+  const inf = info(exId);
+  const x = { uid: uid(), exId, repMin: te ? te.repMin : inf ? inf.repMin : 8, repMax: te ? te.repMax : inf ? inf.repMax : 12, rir: DEFAULT_RIR, rest: te ? te.rest : restFor(e), sets: [] };
   const n = te ? te.sets : (e.kind === 'c' ? 1 : 3);
   for (let i = 0; i < n; i++) x.sets.push({ done: false });
   return x;
@@ -167,7 +180,8 @@ function exerciseCard(x, xi) {
     else inputs = `<input class="si" inputmode="decimal" data-f="w" data-x="${xi}" data-s="${si}" value="${s.w != null ? wTxt(s.w) : ''}" placeholder="${phW}" aria-label="Weight ${uLabel()}">
       <input class="si" inputmode="numeric" data-f="reps" data-x="${xi}" data-s="${si}" value="${s.reps ?? ''}" placeholder="${phR}" aria-label="Reps">
       <select class="si rir" data-f="rir" data-x="${xi}" data-s="${si}" aria-label="Reps in reserve">${['', 0, 1, 2, 3, 4, 5].map(v => `<option value="${v}" ${String(s.rir ?? '') === String(v) ? 'selected' : ''}>${v === '' ? 'RIR' : v === 5 ? '5+' : v}</option>`).join('')}</select>`;
-    return `<div class="srow ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${e.kind === 'c' || e.kind === 't' ? 'one' : ''}" data-row="${xi}-${si}">
+    const g = s.done ? setGain(s, prev, e) : '';
+    return `<div class="srow ${s.done ? 'done' : ''} ${s.warm ? 'warm' : ''} ${e.kind === 'c' || e.kind === 't' ? 'one' : ''}" data-row="${xi}-${si}" data-gain="${esc(g)}">
       <button class="sn" data-wa="set-type" data-x="${xi}" data-s="${si}" aria-label="Set type">${label}</button>
       <span class="sp num">${prevTxt}</span>${inputs}
       <button class="sc" data-wa="check" data-x="${xi}" data-s="${si}" aria-label="Complete set" aria-pressed="${!!s.done}">${icon('check')}</button></div>`;
@@ -175,6 +189,8 @@ function exerciseCard(x, xi) {
   return `<section class="xcard" data-xi="${xi}">
     <div class="xh"><button class="xn" data-wa="ex-info" data-id="${x.exId}"><b>${esc(e.name)}</b><span>${esc(MUS[e.primary] || '')}${lift ? ` · ${x.repMin}–${x.repMax} reps` : ''}${x.rest ? ` · rest ${x.rest >= 60 ? Math.floor(x.rest / 60) + ':' + String(x.rest % 60).padStart(2, '0') : x.rest + 's'}` : ''}</span></button>
       <button class="icon-btn sm" data-wa="ex-menu" data-x="${xi}" aria-label="Exercise options">${icon('dots')}</button></div>
+    ${(() => { const inf = info(x.exId); return inf && (inf.pick || inf.cues) ? `<details class="cues"><summary>${inf.pick ? `<span class="pick">${esc(inf.pick)}</span>` : ''}Setup cues</summary><p>${esc(inf.cues || 'Control the lowering, 2–8 seconds per rep, and keep your form the same every week.')}</p></details>` : ''; })()}
+    ${x.formChange ? `<p class="xhint warn">${icon('bolt')}Technique marked as changed today — extra reps may be fake overload.</p>` : ''}
     ${hint ? `<p class="xhint">${sg ? icon('bolt') : ''}${esc(hint)}${sg && sg.w ? ` <b>${wTxt(sg.w)} ${uLabel()} × ${sg.reps}</b>` : ''}</p>` : ''}
     <div class="shead ${e.kind === 'c' || e.kind === 't' ? 'one' : ''}"><span>Set</span><span>Previous</span>${e.kind === 'c' ? '<span>Time</span>' : e.kind === 't' ? '<span>Hold</span>' : `<span>${uLabel()}</span><span>Reps</span><span>RIR</span>`}<span></span></div>
     ${rows}
@@ -207,9 +223,13 @@ function onWorkoutClick(e) {
       s.pr = pr || undefined;
       row.classList.add('done', 'pop'); b.setAttribute('aria-pressed', 'true');
       if (navigator.vibrate) navigator.vibrate(18);
+      const last = lastPerf(x.exId, a.start), wi = x.sets.slice(0, si).filter(z => !z.warm).length;
+      const g = setGain(s, last && last.sets[wi], ent);
+      s.gain = g || undefined; row.dataset.gain = g;
       if (pr) { K.toast('New personal record on ' + ent.name); row.classList.add('pr'); }
+      else if (g) K.toast(g + ' vs last time — that’s progress');
       if (x.rest && !s.warm) startRest(x.rest);
-    } else { s.done = false; s.pr = undefined; row.classList.remove('done', 'pr'); b.setAttribute('aria-pressed', 'false'); }
+    } else { s.done = false; s.pr = undefined; s.gain = undefined; row.dataset.gain = ''; row.classList.remove('done', 'pr'); b.setAttribute('aria-pressed', 'false'); }
     K.save();
     const bar = wEl.querySelector('.wo-bar');
     if (bar) { bar.children[1].querySelector('b').textContent = doneSets(a); bar.children[2].querySelector('b').textContent = fmt(toDisp(volume(a))); }
@@ -232,29 +252,31 @@ function exerciseMenu(xi) {
     ${isLift(e) ? `<div class="grid2"><label class="field"><span>Min reps</span><input class="input num" id="mlo" inputmode="numeric" value="${x.repMin}"></label>
     <label class="field"><span>Max reps</span><input class="input num" id="mhi" inputmode="numeric" value="${x.repMax}"></label></div>
     <label class="field"><span>Target reps in reserve</span><select class="input" id="mrir">${[0, 1, 2, 3].map(v => `<option ${x.rir === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>` : ''}
+    <label class="field" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="mform" ${x.formChange ? 'checked' : ''} style="margin-top:4px"><span style="margin:0">My technique changed today (looser form, more momentum, shorter range). Extra reps with changed form are fake overload — they don't mean more muscle.</span></label>
     <label class="field"><span>Rest between sets</span><select class="input" id="mrest">${[0, 60, 90, 120, 150, 180, 240, 300].map(v => `<option value="${v}" ${x.rest === v ? 'selected' : ''}>${v ? Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0') : 'No timer'}</option>`).join('')}</select></label>
     <div class="row-btns" style="margin-top:16px"><button class="btn block" id="msave">Save</button></div>
-    <div class="row-btns">${xi > 0 ? '<button class="btn sm ghost" id="mup">Move up</button>' : ''}${xi < a.exercises.length - 1 ? '<button class="btn sm ghost" id="mdown">Move down</button>' : ''}<button class="btn sm ghost" id="mswap">Replace</button><button class="btn sm danger" id="mdel">Remove</button></div>`);
+    <div class="row-btns">${xi > 0 ? '<button class="btn sm ghost" id="mup">Move up</button>' : ''}${xi < a.exercises.length - 1 ? '<button class="btn sm ghost" id="mdown">Move down</button>' : ''}<button class="btn sm ghost" id="mswap">Swap exercise</button><button class="btn sm danger" id="mdel">Remove</button></div>`);
   const done = () => { K.save(); K.closeSheet(); drawWorkout(); };
   el.querySelector('#msave').onclick = () => {
     const lo = +(el.querySelector('#mlo') || {}).value, hi = +(el.querySelector('#mhi') || {}).value;
     if (lo > 0 && hi >= lo) { x.repMin = lo; x.repMax = hi; }
     const r = el.querySelector('#mrir'); if (r) x.rir = +r.value;
-    x.rest = +el.querySelector('#mrest').value; done();
+    x.rest = +el.querySelector('#mrest').value; x.formChange = el.querySelector('#mform').checked || undefined; done();
   };
   const mv = d => { const arr = a.exercises; [arr[xi], arr[xi + d]] = [arr[xi + d], arr[xi]]; done(); };
   const up = el.querySelector('#mup'); if (up) up.onclick = () => mv(-1);
   const dn = el.querySelector('#mdown'); if (dn) dn.onclick = () => mv(1);
   el.querySelector('#mdel').onclick = () => { a.exercises.splice(xi, 1); done(); };
-  el.querySelector('#mswap').onclick = () => { K.closeSheet(); pickExercise(id => { const n = newEntry(id); n.repMin = x.repMin; n.repMax = x.repMax; n.sets = x.sets.map(() => ({ done: false })); a.exercises[xi] = n; K.save(); drawWorkout(); }); };
+  el.querySelector('#mswap').onclick = () => { K.closeSheet(); swapExercise(x.exId, id => { const n = newEntry(id); n.repMin = x.repMin; n.repMax = x.repMax; n.sets = x.sets.map(() => ({ done: false })); a.exercises[xi] = n; K.save(); drawWorkout(); }); };
 }
 
 // ---------- rest timer ----------
 let restT = null;
 function startRest(sec) { T().active.restEnd = Date.now() + sec * 1000; T().active.restLen = sec; K.save(); showRest(); }
-function stopRest() { clearInterval(restT); restT = null; const r = document.getElementById('rest'); if (r) { r.classList.remove('on'); setTimeout(() => r.remove(), 300); } if (T().active) T().active.restEnd = null; }
+function stopRest() { document.body.classList.remove('resting'); clearInterval(restT); restT = null; const r = document.getElementById('rest'); if (r) { r.classList.remove('on'); setTimeout(() => r.remove(), 300); } if (T().active) T().active.restEnd = null; }
 function showRest() {
   let r = document.getElementById('rest');
+  document.body.classList.add('resting');
   if (!r) {
     r = document.createElement('div'); r.id = 'rest'; r.className = 'rest';
     r.innerHTML = `<svg viewBox="0 0 44 44" class="ring"><circle cx="22" cy="22" r="19" class="ring-bg"/><circle cx="22" cy="22" r="19" class="ring-fg" pathLength="100"/></svg>
@@ -295,6 +317,8 @@ function finishWorkout() {
   delete sess.restEnd; delete sess.restLen;
   sess.kcal = sessionKcal(sess);
   const prs = kept.reduce((n, x) => n + x.sets.filter(s => s.pr).length, 0);
+  const gains = kept.reduce((n, x) => n + x.sets.filter(s => s.gain).length, 0);
+  const fake = kept.filter(x => x.formChange && x.sets.some(s => s.gain && /rep/.test(s.gain))).map(x => ex(x.exId).name);
   const tpl = T().templates.find(t => t.id === a.templateId);
   const changed = tpl && (tpl.exercises.length !== a.exercises.length || tpl.exercises.some((te, i) => !a.exercises[i] || te.exId !== a.exercises[i].exId || te.sets !== a.exercises[i].sets.filter(s => !s.warm).length));
   T().sessions.push(sess); T().active = null; stopRest(); K.save();
@@ -305,10 +329,12 @@ function finishWorkout() {
   const el = K.openSheet('Workout complete', `
     <div class="done-hero"><div class="burst">${icon('trophy')}</div><h3>${esc(sess.name)}</h3><p class="mute">${K.niceDate(k, true)} · ${mins(sess.end - sess.start)} min</p></div>
     <div class="nutri">
-      <div><b class="num">${K.cnt('fin-sets', doneSets(sess))}</b><span>sets</span></div>
+      <div><b class="num">${K.cnt('fin-sets', doneSets(sess))}</b><span>${doneSets(sess) === 1 ? 'set' : 'sets'}</span></div>
       <div><b class="num">${K.cnt('fin-vol', r0(toDisp(volume(sess))))}</b><span>${uLabel()} lifted</span></div>
-      <div><b class="num">${K.cnt('fin-pr', prs)}</b><span>PRs</span></div>
+      <div><b class="num">${K.cnt('fin-pr', gains)}</b><span>sets beat</span></div>
       <div><b class="num">${K.cnt('fin-kcal', sess.kcal)}</b><span>kcal est.</span></div></div>
+    ${gains || prs ? `<div class="explain good">${icon('trophy')}<p>${gains ? `You beat last time on <b>${gains} set${gains > 1 ? 's' : ''}</b>. Even one extra rep is progressive overload.` : ''}${prs ? ` ${prs} new personal record${prs > 1 ? 's' : ''}.` : ''}</p></div>` : ''}
+    ${fake.length ? `<div class="explain warn">${icon('bolt')}<p>Possible fake overload on ${fake.map(esc).join(', ')}: reps went up on a day you marked your technique as changed. Keep form identical week to week so extra reps mean extra muscle.</p></div>` : ''}
     <div class="card fuel">
       <h2>${icon('apple')} Refuel</h2>
       <p class="note">${pLeft > 0 ? `You have <b>${pLeft} g of protein</b> left today. A meal with 30–50 g in the next few hours supports recovery.` : 'You have already hit your protein target today — nice.'}
@@ -324,6 +350,34 @@ function finishWorkout() {
   if (fs) fs.onclick = () => { const name = prompt('Template name', sess.name === 'Workout' ? 'My workout' : sess.name); if (!name) return; const t = { id: 't' + uid(), name, program: null, exercises: toTpl() }; T().templates.push(t); sess.templateId = t.id; K.save(); fs.remove(); K.toast('Template saved'); };
   const fu = el.querySelector('#fupd');
   if (fu) fu.onclick = () => { tpl.exercises = toTpl(); K.save(); fu.remove(); K.toast('Template updated'); };
+}
+
+// ---------- swap: rank substitutes by the three criteria ----------
+// 1) tension in the stretched position, 2) feels good (only you can judge — hide ones that hurt), 3) can be overloaded.
+function swapExercise(curId, cb) {
+  const cur = ex(curId);
+  const avoid = T().avoid || (T().avoid = []);
+  const dots = n => '●'.repeat(n) + '○'.repeat(3 - n);
+  const score = e => { const i = info(e.id); return i ? i.stretch * 2 + i.overload + (i.pick ? 1.5 : 0) : 2; };
+  const el = K.openSheet('Swap ' + cur.name, '<div id="sw"></div>', { full: true });
+  const draw = () => {
+    const list = allEx().filter(e => e.id !== curId && e.primary === cur.primary && !avoid.includes(e.id)).sort((a, b) => score(b) - score(a));
+    el.querySelector('#sw').innerHTML = `<p class="note" style="margin-top:0">Ranked by how well each one ticks the three boxes: tension when the muscle is stretched, feels good in your joints, and room to keep adding reps or weight.</p>
+      ${list.map((e, i) => { const n = info(e.id) || { stretch: 2, overload: 2 }; return `<button class="swap" data-id="${e.id}">
+        <span class="n"><b>${esc(e.name)}${i === 0 ? ' <span class="pick">Best match</span>' : n.pick ? ` <span class="pick">${esc(n.pick.split(' · ')[0])}</span>` : ''}</b>
+        <span class="crit"><em>Stretch <i>${dots(n.stretch)}</i></em><em>Overload <i>${dots(n.overload)}</i></em><em>${esc(e.equip)}</em></span></span><span class="add-dot">${icon('plus')}</span></button>`; }).join('') || '<div class="empty">No other exercises for this muscle.</div>'}
+      <div class="row-btns"><button class="btn block ghost" id="swhurt">${icon('minus')}${esc(cur.name)} doesn’t feel good — hide it</button></div>
+      <div class="row-btns"><button class="btn block ghost" id="swall">Browse all exercises</button></div>
+      ${avoid.length ? `<p class="note">Hidden because they didn’t feel good: ${avoid.map(id => esc(ex(id).name)).join(', ')}. <a class="link" id="swreset">Show again</a></p>` : ''}
+      <p class="note">Sharp pain, or pain in a joint, means stop and swap.</p>`;
+  };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.swap[data-id]'); if (b) { K.closeSheet(); cb(b.dataset.id); return; }
+    if (e.target.closest('#swhurt')) { if (!avoid.includes(curId)) avoid.push(curId); K.save(); K.toast('Hidden from swap suggestions'); draw(); }
+    if (e.target.closest('#swall')) { K.closeSheet(); pickExercise(cb); }
+    if (e.target.closest('#swreset')) { T().avoid = []; K.save(); K.closeSheet(); swapExercise(curId, cb); }
+  });
+  draw();
 }
 
 // ---------- pickers & editors ----------
@@ -379,7 +433,7 @@ function editTemplate(tpl) {
   });
   el.addEventListener('click', e => {
     const del = e.target.closest('[data-del]'); if (del) { d.exercises.splice(+del.dataset.del, 1); draw(); return; }
-    if (e.target.closest('#tadd')) pickExercise(id => { const x = ex(id); d.exercises.push({ exId: id, sets: x.kind === 'c' ? 1 : 3, repMin: 8, repMax: 12, rest: restFor(x) }); draw(); });
+    if (e.target.closest('#tadd')) pickExercise(id => { const x = ex(id); const inf = info(id); d.exercises.push({ exId: id, sets: x.kind === 'c' ? 1 : 3, repMin: inf ? inf.repMin : 8, repMax: inf ? inf.repMax : 12, rest: restFor(x) }); draw(); });
     if (e.target.closest('#tsave')) {
       if (!d.name.trim()) { K.toast('Name the template'); return; }
       const arr = T().templates, i = arr.findIndex(t => t.id === d.id);
@@ -419,9 +473,32 @@ function openExercise(id) {
     chartH = K.chart({ h: 160, series: [{ pts: pts.map((p, i) => [i, toDisp(p[1])]), color: 'var(--brand)', width: 3 }, { pts: pts.map((p, i) => [i, toDisp(p[1])]), dots: true, color: 'var(--brand)', r: 3.5 }], xMin: 0, xMax: pts.length - 1, yMin: Math.min(...ys) - pad, yMax: Math.max(...ys) + pad, xLabels: [[0, K.niceDate(pts[0][2].date)], [pts.length - 1, K.niceDate(pts[pts.length - 1][2].date)]] });
   }
   const best = pts.length ? Math.max(...pts.map(p => p[1])) : 0;
+  const inf = info(id);
   K.openSheet(e.name, `<p class="mute" style="margin:0">${esc(MUS[e.primary] || '')}${e.secondary.length ? ' · also ' + e.secondary.map(m => MUS[m]).join(', ') : ''} · ${esc(e.equip)}</p>
+    ${inf ? `<div class="card">${inf.pick ? `<span class="pick">${esc(inf.pick)}</span>` : ''}
+      ${inf.cues ? `<p style="margin:${inf.pick ? '10px' : '0'} 0 0">${esc(inf.cues)}</p>` : ''}
+      <div class="kv"><span>Tension in the stretch</span><b>${['', 'Low', 'Medium', 'High'][inf.stretch]}</b></div>
+      <div class="kv"><span>Easy to overload</span><b>${['', 'Hard', 'Medium', 'Easy'][inf.overload]}</b></div>
+      <div class="kv"><span>Default rep range</span><b>${inf.repMin}–${inf.repMax}</b></div></div>` : ''}
     ${isLift(e) && best ? `<div class="card"><div class="card-h"><h2>Estimated 1-rep max</h2><b class="num">${e1Txt(best)} ${uLabel()}</b></div>${chartH || '<p class="note">Log this exercise in two sessions to see your trend.</p>'}</div>` : ''}
     <div class="card"><div class="card-h"><h2>History</h2></div>${hist.slice().reverse().slice(0, 12).map(s => `<div class="kv"><span>${esc(K.niceDate(s.date, true))}</span><b>${s.exercises.filter(x => x.exId === id).flatMap(x => work(x.sets)).map(st => e.kind === 'c' ? st.min + ' min' : e.kind === 't' ? st.sec + 's' : (st.w ? wTxt(st.w) + '×' : '') + st.reps).join(', ')}</b></div>`).join('') || '<div class="empty">Not logged yet.</div>'}</div>`);
+}
+
+function openTips() {
+  const sec = (h, b) => `<section class="card guide"><h2>${h}</h2>${b}</section>`;
+  const picks = Object.entries(INFO).filter(([, r]) => r[4]).map(([id, r]) => `<button class="kv lift" data-id="${id}"><span>${esc(r[4].replace('Top pick · ', ''))}</span><b>${esc(ex(id).name)}</b></button>`).join('');
+  const el = K.openSheet('Training tips', `
+    <p class="mute" style="margin:0">How to pick exercises and make every set count.</p>
+    ${sec('How to judge an exercise', '<p>An exercise earns a top spot when it has all three:</p><ol><li><b>High tension in the stretch</b> — the muscle has something to work against when it’s longest.</li><li><b>It feels good</b> — smooth, no pain, felt in the muscle more than the joints.</li><li><b>Room to overload</b> — you can keep adding reps or weight.</li></ol><p>Use these to choose a substitute when a machine is taken or something hurts. The Swap button in a workout does this for you.</p>')}
+    ${sec('Top picks per muscle', picks + '<p class="note">Train back with two types: a vertical pull and a horizontal row. Train triceps both ways: overhead (stretch) and with the arm behind you (contraction). Tap a pick for setup cues.</p>')}
+    ${sec('Rep tempo', '<p>Anywhere from 2 to 8 seconds per full rep works equally well. Avoid bouncy, very fast reps and very slow 10–20 second reps. Control the lowering.</p>')}
+    ${sec('Sets to failure', '<p>For higher-rep work, take at least one set to true failure. Most people stop 4–5 reps early when they “feel done”. Log reps in reserve (RIR) honestly — Kalibra uses it to suggest your next weight.</p>')}
+    ${sec('Weekly volume', '<p>About 3 hard sets a week for a muscle already gives roughly 60 % of the growth possible. More sets add more, with diminishing returns. The Sets per muscle chart on the Train tab tracks this.</p>')}
+    ${sec('Lengthened partials', '<p>Partial reps in the stretched half of the range — for a squat, only come about halfway up. Harder than full reps, because there’s no rest at the top.</p>')}
+    ${sec('Progressive overload — and the fake kind', '<p>Track every set. Adding one rep to one set is progress, even when the weight on lateral raises stalls for months. Kalibra marks these with a green “+1 rep”.</p><p><b>Watch for fake overload:</b> technique slowly getting looser, like your chest coming off the pad on a supported row by week six. Keep form the same every week. If your form changed, mark it in the exercise menu and Kalibra will flag rep jumps on that day.</p>')}
+    ${sec('Calves and abs', '<p>The source video skips them. The library includes standing and seated calf raises, cable crunches, hanging leg raises and ab-wheel rollouts — the same three criteria apply.</p>')}
+    <p class="note">Picks and numbers from Will Tennyson ft. Jeff Nippard, “The Best Exercises For Every Muscle”. The video is sponsored by MacroFactor, which doesn't affect the exercise advice. Stretch and overload ratings for other exercises are Kalibra's own. General information, not medical advice — sharp or joint pain means stop and swap.</p>`, { full: true });
+  el.addEventListener('click', e => { const b = e.target.closest('.lift[data-id]'); if (b) openExercise(b.dataset.id); });
 }
 
 // ---------- views ----------
@@ -445,6 +522,7 @@ function viewTrain() {
   const tplCard = tp => `<div class="tpl"><button class="tpl-b" data-act="tpl-start" data-id="${tp.id}"><b>${esc(tp.name)}</b><span>${tp.exercises.map(x => esc(ex(x.exId).name)).join(' · ')}</span></button>
     <button class="icon-btn sm" data-act="tpl-edit" data-id="${tp.id}" aria-label="Edit ${esc(tp.name)}">${icon('edit')}</button></div>`;
   const muscles = Object.keys(MUS).filter(m => m !== 'cardio');
+  const g = K.S.goal, band = g && g.type === 'bulk' && g.exp !== 'beginner' ? [8, 15] : [10, 20];
   const recent = sessionsDesc().slice(0, 8);
   return `${a ? `<button class="hero resume" data-act="wo-resume"><div class="pulse"></div><div><span class="big-l">Workout in progress</span><b class="resume-n">${esc(a.name)}</b><span class="big-l">${doneSets(a)} sets done · started ${new Date(a.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></div>${icon('play')}</button>`
     : nx ? `<section class="hero next"><span class="big-l">Up next</span><div class="resume-n">${esc(nx.name)}</div>
@@ -459,9 +537,10 @@ function viewTrain() {
   </div>
   ${!a ? `<div class="row-btns"><button class="btn sm ghost" data-act="wo-empty">${icon('plus')}Empty workout</button><button class="btn sm ghost" data-act="tpl-new">${icon('edit')}New template</button><button class="btn sm ghost" data-act="program">${icon('dumbbell')}Programs</button></div>` : ''}
   ${T().templates.length ? `<section class="card"><div class="card-h"><h2>Templates</h2></div>${Object.values(groups).map(g => g.map(tplCard).join('')).join('<hr class="sep">')}</section>` : ''}
-  <section class="card"><div class="card-h"><h2>Sets per muscle this week</h2><span class="mute" style="font-size:13px">Target 10–20</span></div>
-    <div class="mv">${muscles.map(m => { const v = mv[m] || 0; return `<div class="mv-r"><span>${MUS[m]}</span><div class="mv-b"><i class="mv-zone"></i>${K.barW('mv-' + m, v / 24 * 100, v >= 10 ? 'var(--brand)' : v > 0 ? 'var(--fat)' : 'transparent')}</div><b class="num">${r1(v)}</b></div>`; }).join('')}</div>
-    <p class="note">Direct sets count fully; muscles that assist count as half a set. 10–20 hard sets per muscle per week suits most people.</p></section>
+  <button class="tcard" data-act="train-tips"><span class="ic">${icon('bolt')}</span><span class="n"><b>Training tips</b><span>Best exercises per muscle, tempo, failure, real vs fake overload</span></span>${icon('right')}</button>
+  <section class="card"><div class="card-h"><h2>Sets per muscle this week</h2><span class="mute" style="font-size:13px">Target ${band[0]}–${band[1]}</span></div>
+    <div class="mv">${muscles.map(m => { const v = mv[m] || 0; return `<div class="mv-r"><span>${MUS[m]}</span><div class="mv-b"><i class="mv-zone" style="left:${band[0] / 24 * 100}%;width:${(band[1] - band[0]) / 24 * 100}%"></i>${K.barW('mv-' + m, v / 24 * 100, v >= band[0] ? 'var(--brand)' : v > 0 ? 'var(--fat)' : 'transparent')}</div><b class="num">${r1(v)}</b></div>`; }).join('')}</div>
+    <p class="note">Direct sets count fully; muscles that assist count as half a set. ${band[0] === 8 ? 'During your lean bulk aim for about 8–15 hard sets per muscle a week, intensity first; big muscles like the back can take more.' : '10–20 hard sets per muscle per week suits most people; even 3 gets you a good part of the way.'}</p></section>
   <section class="card"><div class="card-h"><h2>History</h2><a class="link" data-act="ex-lib">Exercises</a></div>
     ${recent.length ? recent.map(s => `<button class="entry" data-act="sess" data-id="${s.id}"><span class="n"><b>${esc(s.name)}</b><span>${esc(K.niceDate(s.date, true))} · ${mins(s.end - s.start)} min · ${doneSets(s)} sets${s.exercises.some(x => x.sets.some(st => st.pr)) ? ' · <span class="pr-tag">PR</span>' : ''}</span></span><span class="k num">${fmt(toDisp(volume(s)))}<small class="mute"> ${uLabel()}</small></span></button>`).join('')
       : '<div class="empty"><b>No workouts yet</b>Your finished sessions and personal records show up here.</div>'}
@@ -531,6 +610,7 @@ Object.assign(K.actions, {
   sess: el => openSession(el.dataset.id),
   'ex-lib': () => exerciseLibrary(),
   'ex-open': el => openExercise(el.dataset.id),
+  'train-tips': () => openTips(),
 });
 // resume a running rest timer after reload
 addEventListener('DOMContentLoaded', () => { const a = K.S.train && K.S.train.active; if (a && a.restEnd && a.restEnd > Date.now()) showRest(); });
