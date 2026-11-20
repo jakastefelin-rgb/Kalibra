@@ -1,0 +1,11 @@
+{
+  "name": "kalibra",
+  "private": true,
+  "description": "Adaptive nutrition and training coach (static PWA, no build step).",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

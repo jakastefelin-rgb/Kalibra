@@ -445,7 +445,8 @@ function searchLocal(q) {
   return pool.map(f => {
     const n = f._s || (f._s = (f.name + ' ' + (f.brand || '') + ' ' + (f.stores || '') + ' ' + (f.cat || '') + ' ' + (f.alias || '')).toLowerCase());
     if (!toks.every(t => n.includes(t))) return null;
-    return [f, (f.name.toLowerCase().startsWith(toks[0]) ? 0 : 1) + (rank[f.src] || 0) + (f.typical ? 0.6 : 0)];
+    const starts = f.name.toLowerCase().startsWith(toks[0]) || (f.src === 'db' && f.alias && (' ' + f.alias.toLowerCase()).includes(' ' + toks[0]));
+    return [f, (starts ? 0 : 1) + (rank[f.src] || 0) + (f.typical ? 0.6 : 0)];
   }).filter(Boolean).sort((a, b) => a[1] - b[1] || a[0].name.length - b[0].name.length).map(x => x[0]);
 }
 function offToFood(p) {
