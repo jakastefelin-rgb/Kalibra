@@ -1073,7 +1073,7 @@ function resultRow(f, from, i) {
   const sv = f.servings && f.servings[0];
   const kcal = sv ? f.per100.kcal * sv.g / 100 : f.per100.kcal;
   return `<button class="result" data-act="pick" data-from="${from}" data-i="${i}">
-    <span class="n"><b>${esc(f.name)}</b><span>${esc([f.brand && (f.src !== 'db' || f.typical) ? f.brand : '', f.stores || '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
+    <span class="n"><b>${esc(f.name)}</b><span>${f.typical ? '<em class="est">≈ Estimate</em> ' : ''}${esc([f.brand && f.src !== 'db' ? f.brand : '', f.stores || '', sv ? sv.label : '100 g'].filter(Boolean).join(' · '))}</span></span>
     <span class="k num">${fmt(kcal)}<small>kcal</small></span><span class="add-dot">${icon('plus')}</span></button>`;
 }
 
@@ -1084,7 +1084,8 @@ function openDetail(food, entry) {
   const tm = new Date(entry ? entry.t : Date.now());
   const el = openSheet(entry ? 'Edit entry' : 'Add food', `
     <h3 style="font-size:19px">${esc(food.name)}</h3>
-    <p class="mute" style="margin:2px 0 0;font-size:14px">${esc(food.brand || '')}${food.brand ? ' · ' : ''}${fmt(food.per100.kcal)} kcal per 100 g</p>
+    <p class="mute" style="margin:2px 0 0;font-size:14px">${food.typical ? '' : esc(food.brand || '') + (food.brand ? ' · ' : '')}${fmt(food.per100.kcal)} kcal per 100 g</p>
+    ${food.typical ? `<div class="explain">${icon('bolt')}<p><b>Estimate.</b> Recipes and brands vary, so these are typical values. If it comes in a package, scan the barcode for the exact label. <button class="link" data-act="scan">Scan instead</button></p></div>` : ''}
     <div class="nutri" id="dn" style="margin-top:14px"></div>
     <div class="grid2"><label class="field"><span>Amount</span><input class="input num" id="dq" inputmode="decimal" value="${qty}"></label>
     <label class="field"><span>Unit</span><select class="input" id="du">${units.map((u, i) => `<option value="${i}" ${i === uI ? 'selected' : ''}>${esc(u.label)}${i ? ` (${u.g} g)` : ''}</option>`).join('')}</select></label></div>
@@ -1124,7 +1125,7 @@ function openDetail(food, entry) {
   const del = el.querySelector('#ddel');
   if (del) del.onclick = () => { S.logs[ui.date] = S.logs[ui.date].filter(e => e.id !== entry.id); save(); closeAll(); render(); toast('Entry deleted'); };
 }
-const stripFood = f => ({ src: f.src, id: f.id, name: f.name, brand: f.brand, per100: f.per100, servings: f.servings || [], code: f.code });
+const stripFood = f => ({ src: f.src, id: f.id, name: f.name, brand: f.brand, per100: f.per100, servings: f.servings || [], code: f.code, typical: f.typical || undefined });
 
 function openQuick(entry) {
   const e = entry || {};
