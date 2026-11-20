@@ -844,6 +844,7 @@ function viewToday() {
     <button class="stat" data-act="view" data-v="progress"><div class="k">Expenditure</div><div class="v num">${cnt('exp', r0(d.E))}<small> kcal</small></div></button>
   </div>
   ${K.trainingCard ? K.trainingCard(k) : ''}
+  ${K.stepsCard ? K.stepsCard(k) : ''}
   <section class="card">
     <div class="card-h"><h2>Food log</h2><span class="mute num" style="font-size:13px">Fiber ${r0(tot.fib)} g</span></div>
     ${items.length ? items.map(e => `<button class="entry" data-act="edit-entry" data-id="${e.id}">

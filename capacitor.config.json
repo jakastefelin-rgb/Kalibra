@@ -1,0 +1,8 @@
+{
+  "appId": "app.kalibra.coach",
+  "appName": "Kalibra",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

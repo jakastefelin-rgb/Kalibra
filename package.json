@@ -3,9 +3,17 @@
   "private": true,
   "description": "Adaptive nutrition and training coach (static PWA, no build step).",
   "scripts": {
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "build:web": "node scripts/copy-web.js",
+    "android:sync": "npm run build:web && npx cap sync android"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.6.0",
     "playwright": "1.63.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "capacitor-health": "8.4.0"
   }
 }
