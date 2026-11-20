@@ -507,7 +507,9 @@ function chart({ w = 340, h = 180, series, xMin, xMax, yMin, yMax, xLabels = [],
   const L = 34, R = 6, T = 8, B = 20;
   const pw = w - L - R, ph = h - T - B;
   if (yMax - yMin < 1e-6) { yMax += 1; yMin -= 1; }
-  const X = x => L + (xMax === xMin ? pw / 2 : (x - xMin) / (xMax - xMin) * pw);
+  // Bar charts get one slot per x value (bars stay inside the chart even with 1–2 days); line charts span edge to edge.
+  const slots = bars ? Math.max(1, Math.round(xMax - xMin) + 1) : 0;
+  const X = bars ? x => L + (x - xMin + 0.5) * pw / slots : x => L + (xMax === xMin ? pw / 2 : (x - xMin) / (xMax - xMin) * pw);
   const Y = y => T + (1 - (y - yMin) / (yMax - yMin)) * ph;
   let s = `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img">`;
   const step = yStep || niceStep((yMax - yMin) / 4);
@@ -517,13 +519,15 @@ function chart({ w = 340, h = 180, series, xMin, xMax, yMin, yMax, xLabels = [],
   }
   xLabels.forEach(([x, t]) => { s += `<text x="${X(x)}" y="${h - 4}" text-anchor="middle">${esc(t)}</text>`; });
   if (bars) {
-    const bw = Math.max(1.5, pw / (xMax - xMin + 1) * 0.7);
+    const bw = clamp(pw / slots * 0.7, 1.5, 22);
     bars.pts.forEach(([x, y, col]) => { s += `<rect x="${X(x) - bw / 2}" y="${Y(y)}" width="${bw}" height="${Math.max(0, Y(yMin) - Y(y))}" rx="${Math.min(3, bw / 2)}" fill="${col || bars.color}" opacity="${bars.opacity || 1}"/>`; });
   }
   series.forEach(sr => {
     if (sr.dots) sr.pts.forEach(([x, y]) => { s += `<circle cx="${X(x)}" cy="${Y(y)}" r="${sr.r || 2.6}" fill="${sr.color}" opacity="${sr.opacity || 1}"/>`; });
     else if (sr.pts.length) {
-      const d = sr.pts.map(([x, y], i) => (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(y).toFixed(1)).join('');
+      const half = slots ? pw / slots * 0.45 : 12; // a single point is drawn as a short level marker
+      const d = sr.pts.length === 1 ? `M${(X(sr.pts[0][0]) - half).toFixed(1)} ${Y(sr.pts[0][1]).toFixed(1)}L${(X(sr.pts[0][0]) + half).toFixed(1)} ${Y(sr.pts[0][1]).toFixed(1)}`
+        : sr.pts.map(([x, y], i) => (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(y).toFixed(1)).join('');
       s += `<path d="${d}" fill="none" stroke="${sr.color}" stroke-width="${sr.width || 2.5}" stroke-linejoin="round" stroke-linecap="round" ${sr.dash ? `stroke-dasharray="${sr.dash}"` : ''}/>`;
     }
   });

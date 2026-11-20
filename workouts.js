@@ -739,7 +739,7 @@ function strengthCard(range) {
   for (let k = ws; k <= t; k = K.addDays(k, 7)) weeks.push(k);
   const vol = weeks.map((w, i) => [i, toDisp(S_.filter(s => s.date >= w && s.date < K.addDays(w, 7)).reduce((a, s) => a + volume(s), 0)) / 1000]);
   const maxV = Math.max(1, ...vol.map(v => v[1]));
-  const ch = K.chart({ h: 150, bars: { pts: vol.map(([i, v]) => [i, v, 'var(--brand)']), color: 'var(--brand)' }, series: [], xMin: -0.5, xMax: weeks.length - 0.5, yMin: 0, yMax: maxV * 1.1, xLabels: [[0, K.niceDate(weeks[0])], [weeks.length - 1, K.niceDate(weeks[weeks.length - 1])]] });
+  const ch = K.chart({ h: 150, bars: { pts: vol.map(([i, v]) => [i, v, 'var(--brand)']), color: 'var(--brand)' }, series: [], xMin: 0, xMax: weeks.length - 1, yMin: 0, yMax: maxV * 1.1, xLabels: [[0, K.niceDate(weeks[0])], [weeks.length - 1, K.niceDate(weeks[weeks.length - 1])]] });
   // top lifts by number of sessions
   const freq = {};
   S_.forEach(s => s.exercises.forEach(x => { if (isLift(ex(x.exId)) && ex(x.exId).kind === 'w') freq[x.exId] = (freq[x.exId] || 0) + 1; }));

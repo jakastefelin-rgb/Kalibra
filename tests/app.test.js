@@ -56,3 +56,12 @@ module.exports['changes made right before closing survive a reload'] = async (pa
   assert.ok(await page.evaluate(() => K.S.train.templates.some(t => t.id === 'tY')));
   assert.notStrictEqual(await page.evaluate(() => document.getElementById('toast').textContent), 'Your data was restored from the backup copy');
 };
+module.exports['calorie bars stay inside the chart with only a few days logged'] = async (page, { base, onboard, assert, wait }) => {
+  await onboard(page, base);
+  for (const n of [1, 2]) {
+    await page.evaluate(n => { const S = K.S, t = K.todayKey(); S.profile.start = K.addDays(t, -(n - 1)); S.logs = {}; for (let i = 0; i < n; i++) S.logs[K.addDays(t, -i)] = [{ id: 'a' + i, t: 0, name: 'x', kcal: 1800, p: 1, c: 1, f: 1, quick: true }]; K.save(); }, n);
+    await page.click('.tab[data-v=today]'); await page.click('.tab[data-v=progress]'); await wait(page, 700);
+    const out = await page.locator('section.card').filter({ hasText: 'Calories eaten' }).evaluate(c => { const r = c.querySelector('svg').getBoundingClientRect(); return [...c.querySelectorAll('rect')].filter(x => { const q = x.getBoundingClientRect(); return q.left < r.left || q.right > r.right; }).length; });
+    assert.strictEqual(out, 0, `${n} day(s): bars outside the chart`);
+  }
+};
