@@ -1013,6 +1013,7 @@ function viewProfile() {
     <label class="field"><span>Weight unit</span>${seg('set-unit', unit(), [['kg', 'Kilograms'], ['lb', 'Pounds']])}</label>
     <label class="field"><span>Language</span>${seg('set-lang', S.settings.lang, [['en', 'English'], ['sl', 'Slovenščina']])}</label>
     <label class="field"><span>Appearance</span>${seg('set-theme', S.settings.theme, [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</label>
+    <div class="kv"><span>Reminders</span><b><a class="link" data-act="reminders">Set up</a></b></div>
     <label class="field"><span>Check-in day</span><select class="input" data-change="checkin-day">${DAYS.map((d, i) => `<option value="${i}" ${S.goal.checkinDay === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></section>
   <section class="card"><h2>Your data</h2>
     <p class="note">Everything is stored on this device only. Export a backup regularly, especially before clearing your browser.</p>
@@ -1022,6 +1023,51 @@ function viewProfile() {
     <div class="row-btns"><button class="btn sm" data-act="export">Back up now</button><button class="btn sm ghost" data-act="import">Restore backup</button></div>
     <div class="row-btns"><button class="btn sm danger" data-act="reset">Delete all data</button></div></section>
   <p class="note" style="text-align:center">Food data: USDA FoodData Central and Open Food Facts (ODbL).</p>`;
+}
+
+// ---------- reminders (calendar file) ----------
+// Web apps can't schedule notifications without a server, so reminders are exported as recurring calendar
+// events with alarms: the phone's calendar then reminds you reliably, offline, on iPhone and Android.
+const REM = [['weigh', 'Weigh in', '07:00'], ['log', 'Log today’s food', '20:30'], ['checkin', 'Weekly check-in', '09:00'], ['train', 'Training today', '17:00']];
+const BYDAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+function openReminders() {
+  const r = S.settings.rem || (S.settings.rem = { weigh: { on: true, time: '07:00' }, log: { on: true, time: '20:30' }, checkin: { on: true, time: '09:00' }, train: { on: false, time: '17:00' } });
+  const el = openSheet('Reminders', `<p class="note" style="margin-top:0">Pick your reminders, then add them to your phone’s calendar. The calendar reminds you even when Kalibra is closed, and each reminder links back to the app.</p>
+    ${REM.map(([k, l, d]) => { const v = r[k] || { on: false, time: d }; return `<div class="remrow"><label><input type="checkbox" data-rk="${k}" ${v.on ? 'checked' : ''}><span><b>${tt(l)}</b><span class="mute">${k === 'weigh' || k === 'log' ? tt('Every day') : k === 'checkin' ? tt('Every') + ' ' + tt(DAYS[S.goal.checkinDay]) : S.train.days.length ? S.train.days.map(i => tt(DAYS[i])).join(', ') : tt('Pick training days in Plan first')}</span></span></label><input type="time" class="input" data-rt="${k}" value="${v.time}"></div>`; }).join('')}
+    <div class="row-btns" style="margin-top:16px"><button class="btn block" id="remgo">${icon('plus')}Add to my calendar</button></div>
+    <p class="note">Changed your mind later? Delete the “Kalibra” events in your calendar and add them again.</p>`);
+  el.addEventListener('change', e => {
+    const k = e.target.dataset.rk || e.target.dataset.rt; if (!k) return;
+    r[k] = r[k] || { on: false, time: '07:00' };
+    if (e.target.dataset.rk) r[k].on = e.target.checked; else r[k].time = e.target.value;
+    save();
+  });
+  el.querySelector('#remgo').onclick = async () => {
+    const ics = buildIcs(r); if (!ics) { toast('Turn on at least one reminder'); return; }
+    const file = new File([ics], 'kalibra-reminders.ics', { type: 'text/calendar' });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kalibra reminders' }); closeSheet(); return; } } catch (err) { if (err && err.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    closeSheet(); toast('Open the downloaded file to add the reminders');
+  };
+}
+function buildIcs(r) {
+  const app = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const next = (dow, time) => { let k = todayKey(); if (dow != null) while (pkey(k).getDay() !== dow) k = addDays(k, 1); return k.replace(/-/g, '') + 'T' + time.replace(':', '') + '00'; };
+  const esc_ = t => t.replace(/[,;\\]/g, m => '\\' + m);
+  const ev = (key, title, desc, rule, start) => ['BEGIN:VEVENT', `UID:kalibra-${key}@kalibra.app`, `DTSTAMP:${stamp}`, `DTSTART:${start}`, 'DURATION:PT5M', `RRULE:${rule}`,
+    `SUMMARY:${esc_('Kalibra · ' + title)}`, `DESCRIPTION:${esc_(desc + ' ' + app)}`, `URL:${app}`, 'BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER:PT0M', `DESCRIPTION:${esc_(title)}`, 'END:VALARM', 'END:VEVENT'];
+  const out = [];
+  if (r.weigh && r.weigh.on) out.push(...ev('weigh', tt('Weigh in'), tt('Morning, after the bathroom, before eating.'), 'FREQ=DAILY', next(null, r.weigh.time)));
+  if (r.log && r.log.on) out.push(...ev('log', tt('Log today’s food'), tt('Check that today is fully logged.'), 'FREQ=DAILY', next(null, r.log.time)));
+  if (r.checkin && r.checkin.on) out.push(...ev('checkin', tt('Weekly check-in'), tt('Review last week and update your targets.'), `FREQ=WEEKLY;BYDAY=${BYDAY[S.goal.checkinDay]}`, next(S.goal.checkinDay, r.checkin.time)));
+  if (r.train && r.train.on && S.train.days.length) out.push(...ev('train', tt('Training today'), tt('Open Kalibra to start your workout.'), `FREQ=WEEKLY;BYDAY=${S.train.days.map(i => BYDAY[i]).join(',')}`, next(S.train.days[0], r.train.time)));
+  if (!out.length) return '';
+  // RFC 5545: lines longer than 75 bytes are folded (continuation lines start with a space)
+  const fold = l => { const enc = new TextEncoder(); if (enc.encode(l).length <= 75) return l; const parts = []; let cur = '';
+    for (const ch of l) { if (enc.encode(cur + ch).length > (parts.length ? 74 : 75)) { parts.push(cur); cur = ''; } cur += ch; }
+    parts.push(cur); return parts.join('\r\n '); };
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kalibra//Reminders//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', ...out, 'END:VCALENDAR'].map(fold).join('\r\n') + '\r\n';
 }
 
 // ---------- backups ----------
@@ -1587,6 +1633,7 @@ const actions = {
     <div class="row-btns"><button class="btn block ghost" data-act="install-dismiss">Done — don't show again</button></div>`),
   'sus-incomplete': el => { S.incomplete[el.dataset.k] = true; save(); render(); toast('Marked as incomplete'); },
   'sus-ok': el => { S.okDays = Object.assign(S.okDays || {}, { [el.dataset.k]: true }); save(); render(); },
+  reminders: () => openReminders(),
   'install-dismiss': () => { S.settings.installHint = 'off'; save(); closeAll(); render(); },
   import: () => {
     const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';
