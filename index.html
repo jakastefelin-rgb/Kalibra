@@ -410,6 +410,19 @@ button.link{font:inherit;font-weight:700;color:var(--brand)}
 .upd span{font-size:12px;opacity:.85}
 .banner.ask{cursor:default}.banner.ask .row-btns{margin-top:10px}
 .est{font-style:normal;font-weight:700;font-size:11px;color:var(--fat);background:color-mix(in srgb,var(--fat) 14%,transparent);padding:1px 6px;border-radius:6px;margin-right:2px}
+.result.picked{background:color-mix(in srgb,var(--brand) 10%,transparent);border-radius:var(--r-sm)}
+.result.picked .add-dot{background:var(--brand);color:var(--brand-ink)}
+.selbar{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;margin:10px -4px 0;border-radius:var(--r-lg);background:var(--hero);color:var(--hero-ink);box-shadow:0 -10px 30px -20px rgba(0,0,0,.6);animation:rise .35s var(--spring)}
+.selbar span{font-weight:700;font-size:14px}
+#selbtn[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.rtag{display:inline-block;font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand);vertical-align:2px}
+.dh{display:flex;align-items:flex-start;gap:10px}.dh h3{flex:1}
+.star{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--surface);box-shadow:var(--shadow);color:var(--mute);flex:none;transition:transform .3s var(--spring),color .2s}
+.star[aria-pressed="true"]{color:var(--fat)}.star[aria-pressed="true"] svg{fill:currentColor}
+.star:active{transform:scale(.85)}
+.pickrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.pickrow:first-child{border-top:none}.pickrow>span{flex:1;min-width:0}.pickrow b{display:block;font-weight:600}.pickrow span span{font-size:13px}
+.pickrow input{width:20px;height:20px;accent-color:var(--brand)}
 .steps{margin:4px 0 0;padding-left:22px;line-height:1.7}
 /* ---------- onboarding ---------- */
 .ob{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;max-width:520px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 20px) 20px calc(20px + env(safe-area-inset-bottom))}
