@@ -1140,7 +1140,7 @@ async function startCamera(video, msg) {
       loop();
     } else {
       msg.textContent = 'Starting camera…';
-      await loadScript('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js');
+      await loadScript('vendor/zxing-browser.min.js');
       const reader = new ZXingBrowser.BrowserMultiFormatReader();
       zxCtl = await reader.decodeFromConstraints({ video: { facingMode: 'environment' } }, video, (res) => { if (res) found(res.getText()); });
       msg.textContent = 'Point the camera at the barcode.';
@@ -1150,7 +1150,7 @@ async function startCamera(video, msg) {
   }
 }
 function loadScript(src) {
-  return new Promise((ok, fail) => { if ([...document.scripts].some(s => s.src === src)) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.append(s); });
+  return new Promise((ok, fail) => { if (window.ZXingBrowser || [...document.scripts].some(s => s.src.endsWith(src))) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.append(s); });
 }
 async function lookupCode(code) {
   const mine = S.custom.find(f => f.code === code) || (await loadBig()).find(f => f.code === code);
