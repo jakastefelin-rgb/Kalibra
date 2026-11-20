@@ -1,19 +1,35 @@
 # Kalibra
 
-Adaptive calorie and macro coach. Log food and weigh in; Kalibra measures your real energy
-expenditure from intake vs. weight change and updates your targets at a weekly check-in.
+Adaptive nutrition and training coach. Log food and weigh in; Kalibra measures your real energy expenditure
+from intake vs. trend weight and updates your targets at a weekly check-in. English and Slovenian.
 
-- Single-page PWA, no build step, no server. Data is stored on the device (export/import in the app).
-- Food data: hand-picked foods plus the full USDA FoodData Central SR Legacy set (7,448 foods, public domain) in
-  `data/usda.json`, and 4,673 products sold in Slovenia from Open Food Facts (ODbL) in `data/products-si.json`,
-  filtered for complete, plausible nutrition. Online search and barcode lookup reach all of Open Food Facts.
-- Lean bulk goal: gain rate by training experience (% body weight per month), maintenance + 5–10 % surplus,
-  protein 0.7–1 g/lb, fat 20–30 %, weekly ±150 kcal adjustments from trend weight. Based on Jeff Nippard,
-  "How To Bulk Like A Pro (Using Science)".
-- Workouts: exercise library with top picks and setup cues (Will Tennyson ft. Jeff Nippard, "The Best Exercises
-  For Every Muscle"), programs, live logging, rest timer, load/rep suggestions, "+1 rep" progress, swap by
-  stretch / feel / overload, weekly sets per muscle, training-day calories.
+**Live:** https://jakastefelin-rgb.github.io/kalibra/
 
-## Run / deploy
-Open `index.html` through any static web server, e.g. `python3 -m http.server`.
-On GitHub: Settings → Pages → Deploy from branch `main`, folder `/ (root)`.
+## What's inside
+- **Coaching:** adaptive expenditure (skips water-shift days after a phase start, flags under-logged days),
+  lose / maintain / lean bulk goals, weekly check-ins, training-day calorie shifting.
+- **Food:** ~12,400 foods offline — hand-picked basics, USDA FoodData Central SR Legacy (public domain) and
+  products sold in Slovenia from Open Food Facts (ODbL); online search with Spar / Hofer / Lidl / Mercator filters;
+  barcode scanner; meals, recipes, favourites, multi-select; sugars, saturated fat, salt, vitamins and minerals.
+- **Training:** programs, live logging, rest timer, load/rep suggestions, “+1 rep” progress, supersets, plate
+  calculator, deload weeks, weekly report, gym equipment filter, swaps by stretch / feel / overload.
+- **Body:** measurements, US Navy body-fat estimate, progress photos (on device) with comparison.
+- **Safety:** data on device in localStorage plus an IndexedDB copy, persistent-storage request, share-sheet
+  backups, weekly reminders, calendar (.ics) reminders.
+- **Android app:** Capacitor wrapper that reads steps from Health Connect (`android/`).
+
+## Develop
+No build step for the website — serve the folder with any static server.
+
+```bash
+npm install
+npm test               # 24 browser tests (Playwright)
+npm run android:sync   # copy the app into the Android project
+cd android && ./gradlew assembleDebug
+```
+GitHub Actions runs the tests and builds a debug APK on every push. See `docs/PHONE-CHECKLIST.md` for checks
+that need a real phone.
+
+## Sources
+Bulking guidance: Jeff Nippard, “How To Bulk Like A Pro (Using Science)”. Exercise picks: Will Tennyson ft.
+Jeff Nippard, “The Best Exercises For Every Muscle”. General information, not medical advice.
