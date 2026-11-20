@@ -19,6 +19,7 @@ const WINDOW = 28;                 // look-back window for expenditure, days
 const MIN_WINDOW = 10;             // days of history before the estimate starts moving
 const GAIN = 0.12;                 // how fast the estimate follows new evidence (per day)
 const MAX_STEP = 60;               // max change in expenditure per day, kcal
+const WATER_DAYS = 10;             // after starting or switching goal direction, weight moves mostly from water and glycogen
 const TREND_ALPHA = 0.18;          // trend weight: level smoothing (Holt double-exponential)
 const TREND_BETA = 0.025;          // trend weight: slope smoothing — removes the lag a plain moving average has
 const LB = 2.2046226218;
@@ -221,12 +222,17 @@ function model() {
   // adaptive expenditure
   let E = S.init;
   let lastW = -1;
+  // phase starts (setup, or a switch between losing / maintaining / gaining): skip the water-shift days after each
+  const phaseIdx = (S.phases && S.phases.length ? S.phases : [S.profile.start]).map(k => diffDays(start, k)).sort((a, b) => a - b);
   days.forEach(d => {
     if (d.w != null) lastW = d.i;
     d.raw = null;
-    const W = Math.min(WINDOW, d.i + 1);
+    const ph = phaseIdx.filter(x => x <= d.i).pop() ?? 0;
+    const from = Math.max(d.i - WINDOW + 1, ph + WATER_DAYS, 0);
+    const W = d.i - from + 1;
+    d.settling = d.i < ph + WATER_DAYS;
     if (W >= MIN_WINDOW && lastW >= 0 && d.i - lastW <= 3) {
-      const a = d.i - W + 1;
+      const a = from;
       const win = days.slice(a, d.i + 1);
       const wPts = win.filter(x => x.w != null).map(x => [x.i, x.w]);
       const eat = win.filter(x => x.complete).map(x => x.intake);
@@ -661,7 +667,7 @@ function finishOnboarding() {
   S.profile = p.profile; S.goal = p.goal;
   S.init = r0(p.goal.type === 'bulk' ? p.profile.startWeight * LB * LB_MULT[p.profile.activity] : initialTDEE(p.profile.startWeight));
   S.weights[todayKey()] = r1(p.profile.startWeight * 10) / 10;
-  S.checkins = [];
+  S.checkins = []; S.phases = [todayKey()];
   const t = computeTargets(S.init, p.profile.startWeight);
   S.checkins.push({ date: todayKey(), E: S.init, trend: p.profile.startWeight, kcal: t.kcal, p: t.p, c: t.c, f: t.f, initial: true, bulk: !!t.bulk, maint: t.maint });
   save(); ui.view = 'today'; render();
@@ -791,8 +797,11 @@ function viewToday() {
   if (isToday && checkinDue()) banner = `<button class="banner" data-act="checkin">${icon('check')}<div><b>Your weekly check-in is ready</b><span>Review last week and update your targets</span></div>${icon('right')}</button>`;
   else if (isToday && scale == null) banner = `<button class="banner soft" data-act="weight">${icon('scale')}<div><b>Log this morning's weight</b><span>Daily weigh-ins make your expenditure estimate sharper</span></div>${icon('right')}</button>`;
   let extra = '';
-  if (isToday && isIOS() && !isInstalled() && S.settings.installHint !== 'off') extra = `<button class="banner soft" data-act="install-help">${icon('plus')}<div><b>Add Kalibra to your Home Screen</b><span>Keeps your data safe on iPhone and opens like an app</span></div>${icon('right')}</button>`;
-  else if (isToday && backupDue()) extra = `<button class="banner soft" data-act="export">${icon('copy')}<div><b>Time for a backup</b><span>${S.settings.lastBackup ? 'Last backup ' + niceDate(S.settings.lastBackup) : 'You haven’t backed up yet'} — save a copy to Files, Drive or email</span></div>${icon('right')}</button>`;
+  const sus = isToday && suspectDay();
+  if (sus) extra += `<div class="banner soft ask">${icon('bolt')}<div><b>Was ${esc(niceDate(sus.k, true))} fully logged?</b><span>${fmt(sus.kcal)} kcal logged — your usual is about ${fmt(sus.med)}. Missing food makes your expenditure look lower than it is.</span>
+    <div class="row-btns"><button class="btn sm" data-act="sus-incomplete" data-k="${sus.k}">Mark incomplete</button><button class="btn sm ghost" data-act="sus-ok" data-k="${sus.k}">It was complete</button></div></div></div>`;
+  if (isToday && isIOS() && !isInstalled() && S.settings.installHint !== 'off') extra += `<button class="banner soft" data-act="install-help">${icon('plus')}<div><b>Add Kalibra to your Home Screen</b><span>Keeps your data safe on iPhone and opens like an app</span></div>${icon('right')}</button>`;
+  else if (isToday && backupDue()) extra += `<button class="banner soft" data-act="export">${icon('copy')}<div><b>Time for a backup</b><span>${S.settings.lastBackup ? 'Last backup ' + niceDate(S.settings.lastBackup) : 'You haven’t backed up yet'} — save a copy to Files, Drive or email</span></div>${icon('right')}</button>`;
   const dayTag = t.delta ? `<span class="tag ${t.train ? 'on' : ''}">${t.train ? icon('dumbbell') + 'Training +' + fmt(t.delta) : 'Rest day −' + fmt(-t.delta)}</span>` : '';
   return `${banner}${extra}
   <section class="hero" aria-label="Calories">
@@ -868,6 +877,7 @@ function viewProgress() {
   <section class="card"><div class="card-h"><h2>Expenditure</h2><span class="mute" style="font-size:13px">${confidence}</span></div>
     <div class="big num" style="font-size:52px">${fmt(last.E)}<span style="font-size:16px;font-weight:600;font-stretch:100%"> kcal/day</span></div>
     ${eChart}
+    ${last.settling ? '<p class="note"><b>Settling in:</b> the first 10 days after you start or switch goals are mostly water and glycogen, so the estimate holds steady until real changes show.</p>' : ''}
     <p class="note">Started at ${fmt(S.init)} kcal from your profile. ${m.dataDays < 14 ? 'Keep logging food and weight — after about two weeks of data this estimate is driven by your real intake and weight change.' : `Now based on ${m.dataDays} days of your own intake and weight data.`}</p></section>
   <section class="card"><div class="card-h"><h2>Calories eaten</h2>${avgIn != null ? `<span class="mute num" style="font-size:13px">Avg ${fmt(avgIn)} kcal</span>` : ''}</div>
     ${iChart}
@@ -996,6 +1006,16 @@ async function backupNow() {
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kalibra backup' }); shared = true; } } catch (e) { if (e && e.name === 'AbortError') return; }
   if (!shared) { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
   S.settings.lastBackup = todayKey(); save(); render(); toast('Backup saved');
+}
+// A recent day logged far below your usual intake is probably missing food; ask before it skews expenditure.
+function suspectDay() {
+  const t = todayKey(), done = S.okDays || {};
+  const recent = [];
+  for (let i = 1; i <= 28; i++) { const k = addDays(t, -i); const it = S.logs[k]; if (it && it.length && !S.incomplete[k]) recent.push([k, it.reduce((a, e) => a + e.kcal, 0)]); }
+  if (recent.length < 7) return null;
+  const sorted = recent.map(x => x[1]).sort((a, b) => a - b), med = sorted[Math.floor(sorted.length / 2)];
+  const hit = recent.slice(0, 6).find(([k, v]) => v < med * 0.55 && !done[k]);
+  return hit ? { k: hit[0], kcal: hit[1], med } : null;
 }
 const backupDue = () => S.profile && diffDays(S.profile.start, todayKey()) >= 7 && (!S.settings.lastBackup || diffDays(S.settings.lastBackup, todayKey()) >= 7);
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1319,6 +1339,8 @@ function openGoal() {
     readGoalInputs();
     if (g.type === 'maintain' || g.type === 'bulk') g.ratePct = 0;
     if (g.mode === 'manual') g.manual.kcal = r0(g.manual.p * 4 + g.manual.c * 4 + g.manual.f * 9);
+    const dir = x => x.type === 'lose' ? -1 : x.type === 'maintain' ? 0 : 1;
+    if (dir(g) !== dir(S.goal)) S.phases = (S.phases || [S.profile.start]).concat(todayKey());
     S.goal = g;
     if (g.mode !== 'manual') applyCheckin(true); else save();
     closeSheet(); render(); toast('Plan updated');
@@ -1401,6 +1423,8 @@ const actions = {
   'install-help': () => openSheet('Add to Home Screen', `<ol class="steps"><li>Open Kalibra in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open Kalibra from the new icon from now on.</li></ol>
     <p class="note">Safari can delete a website's data after about a week without visits. Apps added to the Home Screen are kept, and they open full-screen like a normal app.</p>
     <div class="row-btns"><button class="btn block ghost" data-act="install-dismiss">Done — don't show again</button></div>`),
+  'sus-incomplete': el => { S.incomplete[el.dataset.k] = true; save(); render(); toast('Marked as incomplete'); },
+  'sus-ok': el => { S.okDays = Object.assign(S.okDays || {}, { [el.dataset.k]: true }); save(); render(); },
   'install-dismiss': () => { S.settings.installHint = 'off'; save(); closeAll(); render(); },
   import: () => {
     const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';

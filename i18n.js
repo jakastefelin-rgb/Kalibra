@@ -10,7 +10,8 @@ const pl = (n, one, two, few, many) => { const x = Math.abs(Math.round(+String(n
 const S = {
   // ---- navigation & common
   'Today': 'Danes', 'Yesterday': 'Včeraj', 'Tomorrow': 'Jutri', 'Train': 'Trening', 'Progress': 'Napredek', 'Plan': 'Načrt', 'You': 'Profil',
-  'Main': 'Glavni meni', 'Add': 'Dodaj', 'Close': 'Zapri', 'Previous day': 'Prejšnji dan', 'Next day': 'Naslednji dan', 'Profile and settings': 'Profil in nastavitve', 'Add to Home Screen': 'Dodaj na začetni zaslon', 'Open Kalibra in': 'Odpri Kalibro v brskalniku', 'Tap the': 'Tapni gumb', 'Share': 'Deli',
+  'Main': 'Glavni meni', 'Add': 'Dodaj', 'Close': 'Zapri', 'Previous day': 'Prejšnji dan', 'Next day': 'Naslednji dan', 'Profile and settings': 'Profil in nastavitve', 'Mark incomplete': 'Označi kot nepopoln', 'It was complete': 'Bil je popoln', 'Marked as incomplete': 'Označeno kot nepopolno', 'Settling in:': 'Prilagajanje:',
+  'the first 10 days after you start or switch goals are mostly water and glycogen, so the estimate holds steady until real changes show.': 'prvih 10 dni po začetku ali menjavi cilja so spremembe večinoma voda in glikogen, zato ocena miruje, dokler se ne pokažejo prave spremembe.', 'Add to Home Screen': 'Dodaj na začetni zaslon', 'Open Kalibra in': 'Odpri Kalibro v brskalniku', 'Tap the': 'Tapni gumb', 'Share': 'Deli',
   'button (square with an arrow).': '(kvadrat s puščico).', 'Choose': 'Izberi', 'Add to Home Screen': 'Dodaj na začetni zaslon', ', then': ', nato', 'Open Kalibra from the new icon from now on.': 'Odslej odpiraj Kalibro z nove ikone.',
   "Safari can delete a website's data after about a week without visits. Apps added to the Home Screen are kept, and they open full-screen like a normal app.": 'Safari lahko izbriše podatke spletne strani po približno tednu brez obiskov. Aplikacije na začetnem zaslonu se ohranijo in se odprejo čez cel zaslon kot običajna aplikacija.',
   "Done — don't show again": 'Končano — ne prikaži več', 'Add Kalibra to your Home Screen': 'Dodaj Kalibro na začetni zaslon', 'Keeps your data safe on iPhone and opens like an app': 'Na iPhonu ohrani podatke in se odpre kot aplikacija',
@@ -396,6 +397,8 @@ const P = [
   [/^\. Even one extra rep is progressive overload\.$/, () => '. Že ena ponovitev več je progresija.'], [/^(\d+) new personal records?\.$/, (_, n) => `${n} ${pl(n, 'nov osebni rekord', 'nova osebna rekorda', 'novi osebni rekordi', 'novih osebnih rekordov')}.`],
   [/^Possible fake overload on (.+): reps went up on a day you marked your technique as changed\. Keep form identical week to week so extra reps mean extra muscle\.$/, (_, x) => `Možna lažna progresija pri: ${list(x)}. Ponovitve so se povečale na dan, ko si označil spremenjeno tehniko. Izvedba naj bo vsak teden enaka, da dodatne ponovitve pomenijo dodatne mišice.`],
   [/^Set (\d+)$/, (_, n) => `Serija ${n}`],
+  [/^Was (.+) fully logged\?$/, (_, d) => `Je bil dan ${tr(d) ?? d} v celoti vnesen?`],
+  [/^([\d\u202f,.]+) kcal logged — your usual is about ([\d\u202f,.]+)\. Missing food makes your expenditure look lower than it is\.$/, (_, a, b) => `Vneseno ${a} kcal — običajno okoli ${b}. Manjkajoča hrana prikaže porabo nižjo, kot je v resnici.`],
   [/^(.+) — save a copy to Files, Drive or email$/, (_, x) => `${tr(x) ?? (x.startsWith('Last backup ') ? 'Zadnja kopija ' + (tr(x.slice(12)) ?? x.slice(12)) : x)} — shrani kopijo v Datoteke, Drive ali e-pošto`],
   [/^([\d\u202f,.]+) foods on this phone, plus millions more in the Online tab\.$/, (_, n) => `${n} živil v telefonu, še milijoni več v zavihku Splet.`],
   [/^Popular at (.+) in Slovenia$/, (_, x) => `Priljubljeno v trgovini ${x} v Sloveniji`], [/^Popular at (.+)$/, (_, x) => `Priljubljeno v trgovini ${x}`],
