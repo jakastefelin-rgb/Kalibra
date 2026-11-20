@@ -373,14 +373,38 @@ function applyCheckin(fresh) {
 }
 
 // ---------- day helpers ----------
+// Extra nutrients (per 100 g): sugars g, saturated fat g, sodium mg, potassium mg, calcium mg, iron mg, vitamin C mg, vitamin D µg.
+// Not every food has them, so daily totals also count how many entries had data.
+const EXTRA_KEYS = ['sug', 'sat', 'na', 'k', 'ca', 'fe', 'vc', 'vd'];
+// EU reference intakes (Reg. 1169/2011) — sugars 90 g, saturated fat 20 g, salt 6 g; fiber 25 g (EFSA).
+const NUTR = [
+  ['fib', 'Fiber', 'g', 25], ['sug', 'Sugars', 'g', 90], ['sat', 'Saturated fat', 'g', 20], ['salt', 'Salt', 'g', 6],
+  ['k', 'Potassium', 'mg', 2000], ['ca', 'Calcium', 'mg', 800], ['fe', 'Iron', 'mg', 14], ['vc', 'Vitamin C', 'mg', 80], ['vd', 'Vitamin D', 'µg', 5],
+];
 function dayTotals(k) {
-  const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
-  for (const e of S.logs[k] || []) { t.kcal += e.kcal; t.p += e.p; t.c += e.c; t.f += e.f; t.fib += e.fib || 0; }
+  const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0, cov: {}, n: 0 };
+  for (const e of S.logs[k] || []) {
+    t.kcal += e.kcal; t.p += e.p; t.c += e.c; t.f += e.f; t.fib += e.fib || 0; t.n++;
+    for (const x of EXTRA_KEYS) if (e[x] != null) { t[x] = (t[x] || 0) + e[x]; t.cov[x] = (t.cov[x] || 0) + 1; }
+  }
+  if (t.na != null) { t.salt = t.na * 2.5 / 1000; t.cov.salt = t.cov.na; }
+  t.cov.fib = t.n;
   return t;
 }
 function nutrFor(per100, grams) {
   const m = grams / 100;
-  return { kcal: per100.kcal * m, p: per100.p * m, c: per100.c * m, f: per100.f * m, fib: (per100.fib || 0) * m };
+  const o = { kcal: per100.kcal * m, p: per100.p * m, c: per100.c * m, f: per100.f * m, fib: (per100.fib || 0) * m };
+  for (const x of EXTRA_KEYS) if (per100[x] != null) o[x] = per100[x] * m;
+  return o;
+}
+const fmtN = v => v >= 100 ? fmt(v) : v >= 10 ? String(r0(v)) : String(r1(v));
+function nutrRows(n, withBars, cov, total) {
+  const v = Object.assign({}, n); if (v.na != null && v.salt == null) v.salt = v.na * 2.5 / 1000;
+  return NUTR.filter(([key]) => v[key] != null).map(([key, label, u, ri]) => {
+    const pct = v[key] / ri * 100, part = cov && total && cov[key] < total;
+    return `<div class="nrow"><span>${tt(label)}${part ? ` <em class="mute">(${cov[key]}/${total})</em>` : ''}</span><b class="num">${fmtN(v[key])} ${u}</b>
+      ${withBars ? `<div class="bar"><i style="width:${clamp(pct, 0, 100)}%;background:${key === 'sug' || key === 'sat' || key === 'salt' ? (pct > 100 ? 'var(--over)' : 'var(--fat)') : 'var(--brand)'}"></i></div><small class="mute num">${r0(pct)}%</small>` : ''}</div>`;
+  }).join('');
 }
 function rememberRecent(food) {
   const key = food.src + ':' + (food.id || food.name);
@@ -404,8 +428,9 @@ function loadBig() {
     fetch('data/products-si.json').then(r => r.ok ? r.json() : []).catch(() => []),
     fetch('data/usda.json').then(r => r.ok ? r.json() : []).catch(() => []),
   ]).then(([si, us]) => {
-    const prod = si.map(r => ({ src: 'off', id: r[0], code: r[0], name: r[1], brand: r[2], stores: r[3], per100: { kcal: r[4], p: r[5], c: r[6], f: r[7], fib: r[8] }, servings: parseServ(r[9]), alias: r[10] || '' }));
-    const usda = us.map((r, i) => ({ src: 'usda', id: 'u' + i, name: r[0], cat: r[1], brand: 'USDA', per100: { kcal: r[2], p: r[3], c: r[4], f: r[5], fib: r[6] }, servings: parseServ(r[7]),
+    const ext = (r, at) => { const o = {}; EXTRA_KEYS.forEach((x, j) => { if (r[at + j] != null) o[x] = r[at + j]; }); return o; };
+    const prod = si.map(r => ({ src: 'off', id: r[0], code: r[0], name: r[1], brand: r[2], stores: r[3], per100: Object.assign({ kcal: r[4], p: r[5], c: r[6], f: r[7], fib: r[8] }, ext(r, 11)), servings: parseServ(r[9]), alias: r[10] || '' }));
+    const usda = us.map((r, i) => ({ src: 'usda', id: 'u' + i, name: r[0], cat: r[1], brand: 'USDA', per100: Object.assign({ kcal: r[2], p: r[3], c: r[4], f: r[5], fib: r[6] }, ext(r, 8)), servings: parseServ(r[7]),
       alias: ALIASES.filter(([k]) => r[0].includes(k)).map(([, v]) => v).join(' ') }));
     BIG = prod.concat(usda);
     return BIG;
@@ -831,6 +856,8 @@ function viewToday() {
       <button class="btn sm ghost" data-act="copy-day">${icon('copy')}Copy previous day</button>
       ${items.length ? `<button class="btn sm ghost" data-act="meal-save">${icon('star')}Save as meal</button>` : ''}
     </div>
+    ${items.length ? `<details class="cues nut day"><summary>${icon('chart')}Nutrients today</summary><div class="nlist">${nutrRows(tot, true, tot.cov, tot.n)}</div>
+      <p class="note">Bars show % of the EU daily reference intake. Numbers in brackets mean only some foods had that nutrient listed${Object.keys(tot.cov).length > 1 ? '' : ' — hand-picked and quick-add foods only list macros and fiber'}.</p></details>` : ''}
     ${items.length ? `<p class="note">${S.incomplete[k]
       ? 'This day is marked as <b>incomplete</b>, so it is left out of your expenditure estimate. <a class="link" data-act="toggle-complete">Mark as complete</a>'
       : 'Forgot to log something? <a class="link" data-act="toggle-complete">Mark day as incomplete</a> so it doesn’t skew your expenditure.'}</p>` : ''}
@@ -885,7 +912,7 @@ function viewProgress() {
     <div class="legend"><span><i class="dot" style="background:var(--brand)"></i>Logged</span><span><i class="dot" style="background:var(--line)"></i>Incomplete</span><span><i class="dot" style="background:var(--fat)"></i>Target</span><span><i class="dot" style="background:var(--ink)"></i>Expenditure</span></div></section>
   <section class="card"><div class="card-h"><h2>Weigh-ins</h2></div>
     ${recentW.length ? recentW.map(k => `<button class="entry" data-act="weight" data-k="${k}"><span class="n"><b>${esc(niceDate(k, true))}</b></span><span class="k num">${wFmt(S.weights[k])} ${unit()}</span></button>`).join('') : '<div class="empty">No weigh-ins yet.</div>'}
-  </section>`.replace('<section class="card"><div class="card-h"><h2>Expenditure', (K.strengthCard ? K.strengthCard(ui.range) : '') + '<section class="card"><div class="card-h"><h2>Expenditure');
+  </section>`.replace('<section class="card"><div class="card-h"><h2>Expenditure', (K.bodyCard ? K.bodyCard(ui.range) : '') + (K.strengthCard ? K.strengthCard(ui.range) : '') + '<section class="card"><div class="card-h"><h2>Expenditure');
 }
 
 function viewPlan() {
@@ -1205,6 +1232,8 @@ function openDetail(food, entry, opts = {}) {
     qty = num(el.querySelector('#dq').value); uI = +el.querySelector('#du').value;
     const g = (isFinite(qty) ? qty : 0) * units[uI].g;
     const n = nutrFor(food.per100, g);
+    const more = nutrRows(n, false);
+    el.querySelector('#dmore').innerHTML = more ? `<details class="cues nut"><summary>More nutrients</summary><div class="nlist">${more}</div></details>` : '';
     el.querySelector('#dn').innerHTML = `<div><b class="num">${fmt(n.kcal)}</b><span>kcal</span></div><div><b class="num" style="color:var(--pro)">${r1(n.p)}</b><span>protein</span></div><div><b class="num" style="color:var(--carb)">${r1(n.c)}</b><span>carbs</span></div><div><b class="num" style="color:var(--fat)">${r1(n.f)}</b><span>fat</span></div>`;
     return { g, n };
   };
@@ -1244,8 +1273,7 @@ function openDetail(food, entry, opts = {}) {
   if (del) del.onclick = () => { S.logs[ui.date] = S.logs[ui.date].filter(e => e.id !== entry.id); save(); closeAll(); render(); toast('Entry deleted'); };
 }
 const stripFood = f => ({ src: f.src, id: f.id, name: f.name, brand: f.brand, per100: f.per100, servings: f.servings || [], code: f.code, typical: f.typical || undefined, recipe: f.recipe ? true : undefined });
-const extraNutr = n => { const o = {}; for (const k of EXTRA_KEYS) if (n[k] != null) o[k] = r1(n[k]); return o; };
-const EXTRA_KEYS = [];
+const extraNutr = n => { const o = {}; for (const k of EXTRA_KEYS) if (n[k] != null) o[k] = Math.round(n[k] * 100) / 100; return o; };
 
 function openQuick(entry) {
   const e = entry || {};
@@ -1286,6 +1314,9 @@ function openCreateFood(code) {
     <label class="field"><span>Carbs g</span><input class="input num" id="cc" inputmode="decimal"></label>
     <label class="field"><span>Fat g</span><input class="input num" id="cf" inputmode="decimal"></label>
     <label class="field"><span>Fiber g</span><input class="input num" id="cfi" inputmode="decimal"></label>
+    <label class="field"><span>Sugars g</span><input class="input num" id="csu" inputmode="decimal" placeholder="optional"></label>
+    <label class="field"><span>Saturated fat g</span><input class="input num" id="csa" inputmode="decimal" placeholder="optional"></label>
+    <label class="field"><span>Salt g</span><input class="input num" id="csl" inputmode="decimal" placeholder="optional"></label>
     <label class="field"><span>Barcode (optional)</span><input class="input num" id="cbc" inputmode="numeric" value="${esc(code || '')}"></label></div>
     <div class="row-btns" style="margin-top:20px"><button class="btn block" id="csave">Save and log</button></div>`);
   el.querySelector('#cper').onclick = e => { const b = e.target.closest('button'); if (!b) return; per = b.dataset.v; el.querySelectorAll('#cper button').forEach(x => x.setAttribute('aria-pressed', x === b)); };
@@ -1300,7 +1331,8 @@ function openCreateFood(code) {
     const m = per === 'serving' ? 100 / sg : 1;
     const food = {
       src: 'custom', id: 'c' + uid(), name, brand: el.querySelector('#cb').value.trim(), code: el.querySelector('#cbc').value.trim() || null,
-      per100: { kcal: k * m, p: p * m, c: c * m, f: f * m, fib: fib * m },
+      per100: Object.assign({ kcal: k * m, p: p * m, c: c * m, f: f * m, fib: fib * m },
+        isFinite(v('#csu')) ? { sug: v('#csu') * m } : {}, isFinite(v('#csa')) ? { sat: v('#csa') * m } : {}, isFinite(v('#csl')) ? { na: v('#csl') * 400 * m } : {}),
       servings: sg > 0 ? [{ label: el.querySelector('#cs').value.trim() || '1 serving', g: sg }] : [],
     };
     S.custom.unshift(food); save();
@@ -1608,7 +1640,7 @@ Object.defineProperty(K, 'S', { get: () => S, configurable: true }); // live: S 
 Object.assign(K, {
   tt, loc, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
   todayKey, dkey, pkey, addDays, diffDays, niceDate, unit, wDisp, wIn, wFmt, chart, niceStep, latest, model, targetsOn, dayTotals, cnt, barW, animateIn,
-  reduceMotion, PROTEIN, openFood,
+  reduceMotion, PROTEIN, openFood, idb, xLabelsFor, isSl,
 });
 window.K = K;
 addEventListener('DOMContentLoaded', boot);
