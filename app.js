@@ -70,10 +70,11 @@ let rev = 0;
 const ui = { view: 'today', date: todayKey(), range: 90, ob: { step: 0 } };
 
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) return load.from(s); } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) return loadFrom(s); } catch (e) { console.error('Kalibra: could not read saved data', e); }
   return blank();
 }
-load.from = s => { const o = Object.assign(blank(), s); o.settings = Object.assign(blank().settings, s.settings || {}); o.train = Object.assign(blankTrain(), s.train || {}); if (!o.settings.lang) o.settings.lang = defaultLang(); return o; };
+// (a hoisted function declaration: load() runs at startup, before any later assignments in this file)
+function loadFrom(s) { const o = Object.assign(blank(), s); o.settings = Object.assign(blank().settings, s.settings || {}); o.train = Object.assign(blankTrain(), s.train || {}); if (!o.settings.lang) o.settings.lang = defaultLang(); return o; }
 // Data is kept twice: localStorage (fast, synchronous) and IndexedDB (a second copy that also holds photos).
 // If one copy goes missing, the app restores from the other on start.
 const idb = (() => {
@@ -103,7 +104,7 @@ async function boot() {
   try { if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist(); } catch (e) {}
   if (!S.profile) {
     const json = await idb.get('state');
-    if (json) { try { const d = JSON.parse(json); if (d && d.profile) { S = load.from(d); save(); toast('Your data was restored from the backup copy'); } } catch (e) {} }
+    if (json) { try { const d = JSON.parse(json); if (d && d.profile) { S = loadFrom(d); save(); toast('Your data was restored from the backup copy'); } } catch (e) {} }
   }
   render();
 }
@@ -1643,7 +1644,7 @@ const actions = {
       try {
         const d = JSON.parse(await i.files[0].text()); if (!d.v || !d.profile) throw 0;
         const photos = d.photos || []; delete d.photos;
-        S = load.from(d); save();
+        S = loadFrom(d); save();
         if (photos.length) { await idb.clear('photos'); for (const p of photos) await idb.set(p.id, p, 'photos'); }
         $('#app').innerHTML = ''; render(); toast('Backup restored');
       }

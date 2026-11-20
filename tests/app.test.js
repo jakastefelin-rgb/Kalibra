@@ -41,3 +41,18 @@ module.exports = {
     assert.deepStrictEqual(leftovers, []);
   },
 };
+module.exports['data saved by an older version loads on start (no second copy yet)'] = async (page, { base, onboard, assert, wait }) => {
+  await onboard(page, base); await wait(page, 700);
+  await page.evaluate(() => { K.S.train.templates.push({ id: 'tX', name: 'Kept', exercises: [] }); K.save(); });
+  await page.evaluate(() => new Promise(ok => { const r = indexedDB.deleteDatabase('kalibra'); r.onsuccess = r.onerror = r.onblocked = () => ok(); }));
+  await page.reload(); await wait(page, 1000);
+  assert.ok(await page.evaluate(() => !!K.S.profile && K.S.train.templates.some(t => t.id === 'tX')), 'existing data must load from localStorage');
+  assert.ok(await page.evaluate(() => !!document.getElementById('main')), 'app screen, not setup');
+};
+module.exports['changes made right before closing survive a reload'] = async (page, { base, onboard, assert, wait }) => {
+  await onboard(page, base); await wait(page, 700);
+  await page.evaluate(() => { K.S.train.templates.push({ id: 'tY', name: 'Last second', exercises: [] }); K.save(); });
+  await page.reload(); await wait(page, 1000);
+  assert.ok(await page.evaluate(() => K.S.train.templates.some(t => t.id === 'tY')));
+  assert.notStrictEqual(await page.evaluate(() => document.getElementById('toast').textContent), 'Your data was restored from the backup copy');
+};
