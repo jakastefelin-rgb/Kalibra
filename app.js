@@ -69,10 +69,43 @@ let rev = 0;
 const ui = { view: 'today', date: todayKey(), range: 90, ob: { step: 0 } };
 
 function load() {
-  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) { const o = Object.assign(blank(), s); o.train = Object.assign(blankTrain(), s.train || {}); if (!o.settings.lang) o.settings.lang = defaultLang(); return o; } } catch (e) {}
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v) return load.from(s); } catch (e) {}
   return blank();
 }
-function save() { rev++; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Storage is full — export a backup'); } }
+load.from = s => { const o = Object.assign(blank(), s); o.settings = Object.assign(blank().settings, s.settings || {}); o.train = Object.assign(blankTrain(), s.train || {}); if (!o.settings.lang) o.settings.lang = defaultLang(); return o; };
+// Data is kept twice: localStorage (fast, synchronous) and IndexedDB (a second copy that also holds photos).
+// If one copy goes missing, the app restores from the other on start.
+const idb = (() => {
+  let dbp = null;
+  const db = () => dbp || (dbp = new Promise((ok, no) => {
+    const r = indexedDB.open('kalibra', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('photos'); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+  }));
+  const tx = (store, mode, fn) => db().then(d => new Promise((ok, no) => { const t = d.transaction(store, mode); const st = t.objectStore(store); const req = fn(st); t.oncomplete = () => ok(req && req.result); t.onerror = () => no(t.error); }));
+  return {
+    get: (k, store = 'kv') => tx(store, 'readonly', st => st.get(k)).catch(() => null),
+    set: (k, v, store = 'kv') => tx(store, 'readwrite', st => st.put(v, k)).catch(() => null),
+    del: (k, store = 'kv') => tx(store, 'readwrite', st => st.delete(k)).catch(() => null),
+    all: (store = 'photos') => tx(store, 'readonly', st => st.getAll()).catch(() => []),
+    clear: (store) => tx(store, 'readwrite', st => st.clear()).catch(() => null),
+  };
+})();
+let idbT;
+function save() {
+  rev++;
+  const json = JSON.stringify(S);
+  try { localStorage.setItem(KEY, json); } catch (e) { toast('Storage is full — export a backup'); }
+  clearTimeout(idbT); idbT = setTimeout(() => idb.set('state', json), 400);
+}
+async function boot() {
+  try { if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist(); } catch (e) {}
+  if (!S.profile) {
+    const json = await idb.get('state');
+    if (json) { try { const d = JSON.parse(json); if (d && d.profile) { S = load.from(d); save(); toast('Your data was restored from the backup copy'); } } catch (e) {} }
+  }
+  render();
+}
 
 // ---------- helpers ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -757,8 +790,11 @@ function viewToday() {
   let banner = '';
   if (isToday && checkinDue()) banner = `<button class="banner" data-act="checkin">${icon('check')}<div><b>Your weekly check-in is ready</b><span>Review last week and update your targets</span></div>${icon('right')}</button>`;
   else if (isToday && scale == null) banner = `<button class="banner soft" data-act="weight">${icon('scale')}<div><b>Log this morning's weight</b><span>Daily weigh-ins make your expenditure estimate sharper</span></div>${icon('right')}</button>`;
+  let extra = '';
+  if (isToday && isIOS() && !isInstalled() && S.settings.installHint !== 'off') extra = `<button class="banner soft" data-act="install-help">${icon('plus')}<div><b>Add Kalibra to your Home Screen</b><span>Keeps your data safe on iPhone and opens like an app</span></div>${icon('right')}</button>`;
+  else if (isToday && backupDue()) extra = `<button class="banner soft" data-act="export">${icon('copy')}<div><b>Time for a backup</b><span>${S.settings.lastBackup ? 'Last backup ' + niceDate(S.settings.lastBackup) : 'You haven’t backed up yet'} — save a copy to Files, Drive or email</span></div>${icon('right')}</button>`;
   const dayTag = t.delta ? `<span class="tag ${t.train ? 'on' : ''}">${t.train ? icon('dumbbell') + 'Training +' + fmt(t.delta) : 'Rest day −' + fmt(-t.delta)}</span>` : '';
-  return `${banner}
+  return `${banner}${extra}
   <section class="hero" aria-label="Calories">
     <div class="hero-row">
       <div><div class="big num ${over ? 'over' : ''}">${cnt('left', Math.abs(left))}</div><div class="big-l">${over ? 'kcal over target' : 'kcal left today'}</div></div>
@@ -924,6 +960,7 @@ function openBulkGuide() {
 }
 
 function viewProfile() {
+  setTimeout(async () => { const el = $('#persist'); if (!el) return; let p = false; try { p = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false; } catch (e) {} el.textContent = tt(p ? 'Protected' : 'Browser may clear it'); }, 0);
   const p = S.profile;
   const seg = (act, cur, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${l}</button>`).join('')}</div>`;
   const h = unit() === 'lb' ? `${Math.floor(p.heightCm / 2.54 / 12)}′ ${r0(p.heightCm / 2.54 % 12)}″` : r0(p.heightCm) + ' cm';
@@ -941,10 +978,28 @@ function viewProfile() {
     <label class="field"><span>Check-in day</span><select class="input" data-change="checkin-day">${DAYS.map((d, i) => `<option value="${i}" ${S.goal.checkinDay === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></section>
   <section class="card"><h2>Your data</h2>
     <p class="note">Everything is stored on this device only. Export a backup regularly, especially before clearing your browser.</p>
-    <div class="row-btns"><button class="btn sm" data-act="export">Export backup</button><button class="btn sm ghost" data-act="import">Import backup</button></div>
+    <div class="kv"><span>Last backup</span><b>${S.settings.lastBackup ? esc(niceDate(S.settings.lastBackup, true)) : 'Never'}</b></div>
+    <div class="kv"><span>Storage</span><b id="persist">…</b></div>
+    ${isIOS() && !isInstalled() ? '<div class="kv"><span>Home Screen app</span><b><a class="link" data-act="install-help">How to add</a></b></div>' : ''}
+    <div class="row-btns"><button class="btn sm" data-act="export">Back up now</button><button class="btn sm ghost" data-act="import">Restore backup</button></div>
     <div class="row-btns"><button class="btn sm danger" data-act="reset">Delete all data</button></div></section>
   <p class="note" style="text-align:center">Food data: USDA FoodData Central and Open Food Facts (ODbL).</p>`;
 }
+
+// ---------- backups ----------
+async function backupNow() {
+  const photos = await idb.all('photos');
+  const data = Object.assign({}, S, { photos, exported: new Date().toISOString() });
+  const name = 'kalibra-backup-' + todayKey() + '.json';
+  const file = new File([JSON.stringify(data)], name, { type: 'application/json' });
+  let shared = false;
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kalibra backup' }); shared = true; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  if (!shared) { const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+  S.settings.lastBackup = todayKey(); save(); render(); toast('Backup saved');
+}
+const backupDue = () => S.profile && diffDays(S.profile.start, todayKey()) >= 7 && (!S.settings.lastBackup || diffDays(S.settings.lastBackup, todayKey()) >= 7);
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 // ---------- food flow ----------
 let foodTab = 'all', foodQ = '', searchTimer, onlineReq = 0;
@@ -1342,20 +1397,26 @@ const actions = {
   'toggle-lang': () => { S.settings.lang = isSl() ? 'en' : 'sl'; save(); applyTheme(); $('#app').innerHTML = ''; render(); toast(isSl() ? 'Jezik: slovenščina' : 'Language: English'); },
   'set-lang': el => { S.settings.lang = el.dataset.v; save(); applyTheme(); $('#app').innerHTML = ''; render(); },
   'set-theme': el => { S.settings.theme = el.dataset.v; save(); render(); },
-  export: () => {
-    const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kalibra-backup-' + todayKey() + '.json'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  },
+  export: () => backupNow(),
+  'install-help': () => openSheet('Add to Home Screen', `<ol class="steps"><li>Open Kalibra in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open Kalibra from the new icon from now on.</li></ol>
+    <p class="note">Safari can delete a website's data after about a week without visits. Apps added to the Home Screen are kept, and they open full-screen like a normal app.</p>
+    <div class="row-btns"><button class="btn block ghost" data-act="install-dismiss">Done — don't show again</button></div>`),
+  'install-dismiss': () => { S.settings.installHint = 'off'; save(); closeAll(); render(); },
   import: () => {
     const i = document.createElement('input'); i.type = 'file'; i.accept = 'application/json,.json';
     i.onchange = async () => {
-      try { const d = JSON.parse(await i.files[0].text()); if (!d.v || !d.profile) throw 0; S = Object.assign(blank(), d); save(); render(); toast('Backup restored'); }
+      try {
+        const d = JSON.parse(await i.files[0].text()); if (!d.v || !d.profile) throw 0;
+        const photos = d.photos || []; delete d.photos;
+        S = load.from(d); save();
+        if (photos.length) { await idb.clear('photos'); for (const p of photos) await idb.set(p.id, p, 'photos'); }
+        $('#app').innerHTML = ''; render(); toast('Backup restored');
+      }
       catch (e) { toast('That file is not a Kalibra backup'); }
     };
     i.click();
   },
-  reset: () => { if (confirm(tt('Delete all food logs, weigh-ins and settings from this device? This cannot be undone.'))) { S = blank(); save(); ui.ob = { step: 0 }; render(); } },
+  reset: () => { if (confirm(tt('Delete all food logs, weigh-ins and settings from this device? This cannot be undone.'))) { S = blank(); save(); idb.del('state'); idb.clear('photos'); ui.ob = { step: 0 }; render(); } },
   'ob-set': el => {
     const d = ui.ob.d, k = el.dataset.k; readObInputs(); let v = el.dataset.v;
     if (['ratePct', 'monthPct', 'pLb', 'fatPct'].includes(k)) v = +v;
@@ -1389,11 +1450,12 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && S.
 window.Kalibra = { model, computeTargets, macrosFor, get state() { return S; }, set state(v) { S = v; save(); } };
 
 // Shared toolkit for feature modules (workouts.js). Modules add views, actions and hooks before first render.
+Object.defineProperty(K, 'S', { get: () => S, configurable: true }); // live: S is replaced on restore/reset
 Object.assign(K, {
-  tt, loc, get S() { return S; }, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
+  tt, loc, save, render, go, transition, ui, VIEWS, TITLES, actions, openSheet, closeSheet, closeAll, toast, icon, esc, num, fmt, r0, r1, clamp, uid,
   todayKey, dkey, pkey, addDays, diffDays, niceDate, unit, wDisp, wIn, wFmt, chart, niceStep, latest, model, targetsOn, dayTotals, cnt, barW, animateIn,
   reduceMotion, PROTEIN, openFood,
 });
 window.K = K;
-addEventListener('DOMContentLoaded', render);
+addEventListener('DOMContentLoaded', boot);
 })();
