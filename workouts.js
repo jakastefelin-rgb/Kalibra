@@ -97,12 +97,25 @@ function setGain(s, prev, e) {
 }
 // Suggested load and reps for today: add reps inside the range; once every set reaches the top of the
 // range, move up in load to the weight your estimated 1RM supports at the bottom of the range.
+// ---------- deloads ----------
+// Every N weeks (or when you ask), one lighter week: ~10 % less load, half the sets, stop well short of failure.
+const DL = () => T().deload || (T().deload = { every: 0, anchor: null, force: null });
+function isDeload(k) {
+  const d = DL(), ws = weekStart(k);
+  if (d.force === ws) return true;
+  if (d.skip === ws) return false;
+  if (!d.every) return false;
+  const anchor = d.anchor || (T().sessions.length ? weekStart(T().sessions.slice().sort((a, b) => a.start - b.start)[0].date) : ws);
+  const w = Math.floor(K.diffDays(anchor, ws) / 7);
+  return w >= 0 && w % d.every === d.every - 1;
+}
 function suggest(x) {
   const e = ex(x.exId), last = lastPerf(x.exId, T().active ? T().active.start : Infinity);
   if (!last || !isLift(e)) return null;
   const lo = x.repMin, hi = x.repMax, rir = x.rir ?? DEFAULT_RIR;
   const sets = last.sets;
   const topW = Math.max(...sets.map(s => s.w || 0));
+  if (T().active && isDeload(T().active.date)) return topW ? { w: roundLoad(topW * 0.9, e, 'down'), reps: lo, why: 'Deload week — about 10% lighter, stop 3–4 reps short of failure' } : { w: 0, reps: lo, why: 'Deload week — easy sets, stop well short of failure' };
   const minReps = Math.min(...sets.map(s => s.reps || 0));
   const best = Math.max(...sets.map(s => e1rm(s.w || 0, s.reps || 0, s.rir ?? rir)));
   if (e.kind === 'bw' && !topW) return { w: 0, reps: Math.min(minReps + 1, hi + 5), why: minReps >= hi ? 'Beat last time — add a rep' : 'Add a rep per set' };
@@ -141,7 +154,7 @@ function startWorkout(tpl) {
   const now = Date.now();
   T().active = {
     id: 's' + uid(), date: K.todayKey(), start: now, name: tpl ? tpl.name : 'Workout', templateId: tpl ? tpl.id : null, restEnd: null,
-    exercises: tpl ? tpl.exercises.map(te => newEntry(te.exId, te)) : [],
+    exercises: tpl ? tpl.exercises.map(te => newEntry(te.exId, isDeload(K.todayKey()) ? Object.assign({}, te, { sets: Math.max(1, Math.ceil(te.sets / 2)) }) : te)) : [],
   };
   K.save(); K.render(); openWorkout();
 }
@@ -172,6 +185,7 @@ function drawWorkout() {
       <div><span class="mute">Sets</span><b class="num">${doneSets(a)}</b></div>
       <div><span class="mute">Volume</span><b class="num">${fmt(toDisp(volume(a)))}</b></div>
       <button class="btn sm" data-wa="finish">Finish</button></div>
+    ${isDeload(a.date) ? `<p class="xhint">${icon('bolt')}${esc(K.tt('Deload week: lighter weights and half the sets let your joints and nerves recover, so you come back stronger.'))}</p>` : ''}
     ${a.exercises.map(exerciseCard).join('') || `<div class="empty"><b>Empty workout</b>Add your first exercise to get going.</div>`}
     <div class="row-btns"><button class="btn block ghost" data-wa="add-ex">${icon('plus')}Add exercise</button></div>
     <div class="row-btns"><button class="btn block danger" data-wa="discard">Discard workout</button></div>`;
@@ -201,10 +215,14 @@ function exerciseCard(x, xi) {
       <span class="sp num">${prevTxt}</span>${inputs}
       <button class="sc" data-wa="check" data-x="${xi}" data-s="${si}" aria-label="Complete set" aria-pressed="${!!s.done}">${icon('check')}</button></div>`;
   }).join('');
-  return `<section class="xcard" data-xi="${xi}">
+  const grp = ssGroup(xi);
+  const plates = e.equip === 'Barbell' || x.exId === 'smithsquat';
+  return `<section class="xcard ${grp ? 'ss' : ''}" data-xi="${xi}">
+    ${grp ? `<span class="ss-tag">${esc(K.tt('Superset'))} ${grp}</span>` : ''}
     <div class="xh"><button class="xn" data-wa="ex-info" data-id="${x.exId}"><b>${esc(e.name)}</b><span>${esc(MUS[e.primary] || '')}${lift ? ` · ${x.repMin}–${x.repMax} reps` : ''}${x.rest ? ` · rest ${x.rest >= 60 ? Math.floor(x.rest / 60) + ':' + String(x.rest % 60).padStart(2, '0') : x.rest + 's'}` : ''}</span></button>
+      ${plates ? `<button class="icon-btn sm" data-wa="plates" data-x="${xi}" aria-label="Plate calculator">${icon('plates')}</button>` : ''}
       <button class="icon-btn sm" data-wa="ex-menu" data-x="${xi}" aria-label="Exercise options">${icon('dots')}</button></div>
-    ${(() => { const inf = info(x.exId); return inf && (inf.pick || inf.cues) ? `<details class="cues"><summary>${inf.pick ? `<span class="pick">${esc(inf.pick)}</span>` : ''}Setup cues</summary><p>${esc(inf.cues || 'Control the lowering, 2–8 seconds per rep, and keep your form the same every week.')}</p></details>` : ''; })()}
+    ${e.kind === 'c' ? '' : (() => { const inf = info(x.exId) || {}; return `<details class="cues"><summary>${inf.pick ? `<span class="pick">${esc(inf.pick)}</span>` : ''}Setup cues</summary><p>${esc(inf.cues || 'Control the lowering, 2–8 seconds per rep, and keep your form the same every week.')}</p>${watchLink(e)}</details>`; })()}
     ${!canDo(x.exId) ? `<p class="xhint warn">${icon('bolt')}Not at your gym — needs ${esc(needsTxt(x.exId))}. <button class="link" data-wa="ex-swap" data-x="${xi}">Swap it</button></p>` : ''}
     ${x.formChange ? `<p class="xhint warn">${icon('bolt')}Technique marked as changed today — extra reps may be fake overload.</p>` : ''}
     ${hint ? `<p class="xhint">${sg ? icon('bolt') : ''}${esc(hint)}${sg && sg.w ? ` <b>${wTxt(sg.w)} ${uLabel()} × ${sg.reps}</b>` : ''}</p>` : ''}
@@ -244,7 +262,7 @@ function onWorkoutClick(e) {
       s.gain = g || undefined; row.dataset.gain = g;
       if (pr) { K.toast('New personal record on ' + ent.name); row.classList.add('pr'); }
       else if (g) K.toast(g + ' vs last time — that’s progress');
-      if (x.rest && !s.warm) startRest(x.rest);
+      if (x.rest && !s.warm && !x.ss) startRest(x.rest);
     } else { s.done = false; s.pr = undefined; s.gain = undefined; row.dataset.gain = ''; row.classList.remove('done', 'pr'); b.setAttribute('aria-pressed', 'false'); }
     K.save();
     const bar = wEl.querySelector('.wo-bar');
@@ -254,6 +272,7 @@ function onWorkoutClick(e) {
   if (act === 'add-set') { const prev = x.sets.filter(s => !s.warm).pop(); x.sets.push({ done: false, w: prev && prev.w != null ? prev.w : undefined }); K.save(); drawWorkout(); return; }
   if (act === 'set-type') { const s = x.sets[si]; if (s.done) return; s.warm = !s.warm; K.save(); drawWorkout(); return; }
   if (act === 'ex-menu') return exerciseMenu(xi);
+  if (act === 'plates') return openPlates(x);
   if (act === 'ex-swap') return swapExercise(x.exId, id => { const n = newEntry(id); n.sets = x.sets.filter(z => !z.done).map(() => ({ done: false })); if (!n.sets.length) n.sets = [{ done: false }]; a.exercises[xi] = n; K.save(); drawWorkout(); });
   if (act === 'ex-info') return openExercise(b.dataset.id);
   if (act === 'add-ex') return pickExercise(id => { a.exercises.push(newEntry(id)); K.save(); drawWorkout(); setTimeout(() => { const sb = wEl.querySelector('.sheet-b'); sb.scrollTo({ top: sb.scrollHeight, behavior: 'smooth' }); }, 60); });
@@ -270,6 +289,7 @@ function exerciseMenu(xi) {
     <label class="field"><span>Max reps</span><input class="input num" id="mhi" inputmode="numeric" value="${x.repMax}"></label></div>
     <label class="field"><span>Target reps in reserve</span><select class="input" id="mrir">${[0, 1, 2, 3].map(v => `<option ${x.rir === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>` : ''}
     <label class="field" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="mform" ${x.formChange ? 'checked' : ''} style="margin-top:4px"><span style="margin:0">My technique changed today (looser form, more momentum, shorter range). Extra reps with changed form are fake overload — they don't mean more muscle.</span></label>
+    ${xi < a.exercises.length - 1 ? `<label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="mss" ${x.ss ? 'checked' : ''}><span style="margin:0">Superset with the next exercise (${esc(ex(a.exercises[xi + 1].exId).name)}) — rest only after both</span></label>` : ''}
     <label class="field"><span>Rest between sets</span><select class="input" id="mrest">${[0, 60, 90, 120, 150, 180, 240, 300].map(v => `<option value="${v}" ${x.rest === v ? 'selected' : ''}>${v ? Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0') : 'No timer'}</option>`).join('')}</select></label>
     <div class="row-btns" style="margin-top:16px"><button class="btn block" id="msave">Save</button></div>
     <div class="row-btns">${xi > 0 ? '<button class="btn sm ghost" id="mup">Move up</button>' : ''}${xi < a.exercises.length - 1 ? '<button class="btn sm ghost" id="mdown">Move down</button>' : ''}<button class="btn sm ghost" id="mswap">Swap exercise</button><button class="btn sm danger" id="mdel">Remove</button></div>`);
@@ -278,13 +298,49 @@ function exerciseMenu(xi) {
     const lo = +(el.querySelector('#mlo') || {}).value, hi = +(el.querySelector('#mhi') || {}).value;
     if (lo > 0 && hi >= lo) { x.repMin = lo; x.repMax = hi; }
     const r = el.querySelector('#mrir'); if (r) x.rir = +r.value;
-    x.rest = +el.querySelector('#mrest').value; x.formChange = el.querySelector('#mform').checked || undefined; done();
+    x.rest = +el.querySelector('#mrest').value; x.formChange = el.querySelector('#mform').checked || undefined; const ssb = el.querySelector('#mss'); if (ssb) x.ss = ssb.checked || undefined; done();
   };
   const mv = d => { const arr = a.exercises; [arr[xi], arr[xi + d]] = [arr[xi + d], arr[xi]]; done(); };
   const up = el.querySelector('#mup'); if (up) up.onclick = () => mv(-1);
   const dn = el.querySelector('#mdown'); if (dn) dn.onclick = () => mv(1);
   el.querySelector('#mdel').onclick = () => { a.exercises.splice(xi, 1); done(); };
   el.querySelector('#mswap').onclick = () => { K.closeSheet(); swapExercise(x.exId, id => { const n = newEntry(id); n.repMin = x.repMin; n.repMax = x.repMax; n.sets = x.sets.map(() => ({ done: false })); a.exercises[xi] = n; K.save(); drawWorkout(); }); };
+}
+
+// superset groups: an exercise with ss=true is linked to the next one
+function ssGroup(xi) {
+  const xs = T().active.exercises; let g = 0, i = 0;
+  while (i < xs.length) {
+    const startI = i; while (i < xs.length - 1 && xs[i].ss) i++;
+    if (i > startI) { g++; if (xi >= startI && xi <= i) return String.fromCharCode(64 + g); }
+    i++;
+  }
+  return '';
+}
+const watchLink = e => `<a class="link watch" href="https://www.youtube.com/results?search_query=${encodeURIComponent(e.name + ' proper form')}" target="_blank" rel="noopener">${icon('play')}${esc(K.tt('Watch how (YouTube)'))}</a>`;
+
+// ---------- plate calculator ----------
+function openPlates(x) {
+  const e = ex(x.exId), lb = K.unit() === 'lb';
+  const sg = suggest(x), lastSet = x.sets.filter(s => s.w).pop();
+  let target = lastSet ? toDisp(lastSet.w) : sg && sg.w ? toDisp(sg.w) : (lb ? 135 : 60);
+  let bar = x.exId === 'smithsquat' ? 0 : lb ? 45 : 20;
+  const PL = lb ? [45, 35, 25, 10, 5, 2.5] : [25, 20, 15, 10, 5, 2.5, 1.25];
+  const COL = { 25: '#d33', 20: '#2f6fd6', 15: '#e2b007', 10: '#2a9d5c', 5: '#eee', 2.5: '#555', 1.25: '#999', 45: '#2f6fd6', 35: '#e2b007' };
+  const el = K.openSheet('Plate calculator', '<div id="plc"></div>');
+  const draw = () => {
+    let side = (target - bar) / 2, used = [];
+    for (const p of PL) while (side >= p - 1e-9) { used.push(p); side -= p; }
+    const loaded = bar + used.reduce((a, p) => a + p, 0) * 2;
+    el.querySelector('#plc').innerHTML = `<div class="grid2"><label class="field"><span>Target (${uLabel()})</span><input class="input num" id="plt" inputmode="decimal" value="${target}"></label>
+      <label class="field"><span>Bar (${uLabel()})</span><select class="input" id="plb">${(lb ? [45, 35, 0] : [20, 15, 10, 0]).map(v => `<option value="${v}" ${v === bar ? 'selected' : ''}>${v ? v : K.tt('None / Smith')}</option>`).join('')}</select></label></div>
+      <div class="barviz"><div class="sleeve">${used.slice().reverse().map(p => `<i style="background:${COL[p]};height:${30 + p * (lb ? 1.3 : 2.6)}px">${p}</i>`).join('')}</div><div class="shaft"></div><div class="sleeve r">${used.map(p => `<i style="background:${COL[p]};height:${30 + p * (lb ? 1.3 : 2.6)}px">${p}</i>`).join('')}</div></div>
+      <div class="card"><div class="kv"><span>${K.tt('Each side')}</span><b class="num">${used.length ? used.join(' + ') + ' ' + uLabel() : '—'}</b></div>
+      <div class="kv"><span>${K.tt('Total on the bar')}</span><b class="num">${r1(loaded)} ${uLabel()}</b></div></div>
+      ${Math.abs(loaded - target) > 0.01 ? `<p class="note">${K.tt('Closest you can load with standard plates.')}</p>` : ''}`;
+  };
+  el.addEventListener('change', ev => { if (ev.target.id === 'plt') target = Math.max(0, num(ev.target.value) || 0); if (ev.target.id === 'plb') bar = +ev.target.value; draw(); });
+  draw();
 }
 
 // ---------- rest timer ----------
@@ -504,6 +560,7 @@ function openExercise(id) {
       <div class="kv"><span>Tension in the stretch</span><b>${['', 'Low', 'Medium', 'High'][inf.stretch]}</b></div>
       <div class="kv"><span>Easy to overload</span><b>${['', 'Hard', 'Medium', 'Easy'][inf.overload]}</b></div>
       <div class="kv"><span>Default rep range</span><b>${inf.repMin}–${inf.repMax}</b></div></div>` : ''}
+    ${e.kind !== 'c' ? `<div class="row-btns">${watchLink(e)}</div>` : ''}
     ${isLift(e) && best ? `<div class="card"><div class="card-h"><h2>Estimated 1-rep max</h2><b class="num">${e1Txt(best)} ${uLabel()}</b></div>${chartH || '<p class="note">Log this exercise in two sessions to see your trend.</p>'}</div>` : ''}
     <div class="card"><div class="card-h"><h2>History</h2></div>${hist.slice().reverse().slice(0, 12).map(s => `<div class="kv"><span>${esc(K.niceDate(s.date, true))}</span><b>${s.exercises.filter(x => x.exId === id).flatMap(x => work(x.sets)).map(st => e.kind === 'c' ? st.min + ' min' : e.kind === 't' ? st.sec + 's' : (st.w ? wTxt(st.w) + '×' : '') + st.reps).join(', ')}</b></div>`).join('') || '<div class="empty">Not logged yet.</div>'}</div>`);
 }
@@ -584,6 +641,35 @@ function muscleVolume(fromK) {
   }));
   return v;
 }
+// Last full week (Mon–Sun) compared with the week before it.
+function weeklyReport() {
+  const t = K.todayKey(), w1 = K.addDays(weekStart(t), -7), w0 = K.addDays(w1, -7);
+  const stat = from => {
+    const ss = T().sessions.filter(s => s.date >= from && s.date < K.addDays(from, 7));
+    const mv = {}; ss.forEach(s => s.exercises.forEach(x => { const e = ex(x.exId); if (e.kind !== 'c') mv[e.primary] = (mv[e.primary] || 0) + work(x.sets).length; }));
+    return { n: ss.length, sets: ss.reduce((a, s) => a + doneSets(s), 0), vol: ss.reduce((a, s) => a + volume(s), 0),
+      prs: ss.reduce((a, s) => a + s.exercises.reduce((b, x) => b + x.sets.filter(z => z.pr).length, 0), 0),
+      beat: ss.reduce((a, s) => a + s.exercises.reduce((b, x) => b + x.sets.filter(z => z.gain).length, 0), 0), mv };
+  };
+  const A = stat(w1), P = stat(w0);
+  if (!A.n && !P.n) return '';
+  const ch = (a, b) => b ? `<em class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : '−'}${Math.abs(Math.round((a - b) / b * 100))}%</em>` : '';
+  const top = Object.entries(A.mv).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m, n]) => `${K.tt(MUS[m])} ${n}`).join(' · ');
+  const low = Object.keys(MUS).filter(m => m !== 'cardio' && (A.mv[m] || 0) < 3 && ['chest', 'lats', 'upperback', 'quads', 'hamstrings', 'glutes', 'sidedelt'].includes(m)).map(m => K.tt(MUS[m]));
+  return `<section class="card report"><div class="card-h"><h2>${K.tt('Last week')}</h2><span class="mute" style="font-size:13px">${esc(K.niceDate(w1))} – ${esc(K.niceDate(K.addDays(w1, 6)))}</span></div>
+    <div class="stats" style="margin-top:0">
+      <div class="stat" style="box-shadow:none;background:var(--surface-2)"><div class="k">${K.tt('Workouts')}</div><div class="v num">${A.n} ${ch(A.n, P.n)}</div></div>
+      <div class="stat" style="box-shadow:none;background:var(--surface-2)"><div class="k">${K.tt('Sets')}</div><div class="v num">${A.sets} ${ch(A.sets, P.sets)}</div></div>
+      <div class="stat" style="box-shadow:none;background:var(--surface-2)"><div class="k">${K.tt('Volume')}</div><div class="v num">${r1(toDisp(A.vol) / 1000)}<small> t</small> ${ch(A.vol, P.vol)}</div></div></div>
+    <p class="note">${A.beat || A.prs ? K.tt(`You beat your previous numbers on ${A.beat} sets`) + (A.prs ? ' · ' + K.tt(`${A.prs} personal records`) : '') + '. ' : ''}${top ? K.tt('Most sets') + ': ' + esc(top) + '. ' : ''}${low.length && A.n ? K.tt('Under 3 hard sets') + ': ' + esc(low.join(', ')) + '.' : ''}</p></section>`;
+}
+function deloadCard() {
+  const d = DL(), now = isDeload(K.todayKey());
+  return `<section class="card"><div class="card-h"><h2>${K.tt('Deload weeks')}</h2>${now ? `<span class="pick">${K.tt('This week')}</span>` : ''}</div>
+    <p class="note" style="margin-top:0">${K.tt('Every few weeks, one lighter week (about 10% less weight, half the sets) lets joints and fatigue recover. Kalibra adjusts suggestions automatically.')}</p>
+    <div class="seg" style="margin-top:10px">${[[0, 'Off'], [4, '4 wk'], [6, '6 wk'], [8, '8 wk']].map(([v, l]) => `<button data-act="deload-every" data-v="${v}" aria-pressed="${(d.every || 0) === v}">${K.tt(l)}</button>`).join('')}</div>
+    <div class="row-btns">${now ? `<button class="btn sm ghost" data-act="deload-skip">${K.tt('Skip this deload')}</button>` : `<button class="btn sm ghost" data-act="deload-now">${K.tt('Deload this week')}</button>`}</div></section>`;
+}
 function viewTrain() {
   const a = T().active, nx = nextTemplate(), t = K.todayKey();
   const wk = weekStart(t), mv = muscleVolume(wk);
@@ -608,6 +694,8 @@ function viewTrain() {
   </div>
   ${!a ? `<div class="row-btns"><button class="btn sm ghost" data-act="wo-empty">${icon('plus')}Empty workout</button><button class="btn sm ghost" data-act="tpl-new">${icon('edit')}New template</button><button class="btn sm ghost" data-act="program">${icon('dumbbell')}Programs</button></div>` : ''}
   ${T().templates.length ? `<section class="card"><div class="card-h"><h2>Templates</h2></div>${Object.values(groups).map(g => g.map(tplCard).join('')).join('<hr class="sep">')}</section>` : ''}
+  ${weeklyReport()}
+  ${deloadCard()}
   <button class="tcard" data-act="gym"><span class="ic">${icon('plan')}</span><span class="n"><b>${gym() ? esc(gym().name) : 'Set up my gym'}</b><span>${gym() ? `${gym().equip.length} of ${Object.keys(EQUIP).length} equipment types · exercises adapt to it` : 'Pick your gym in Gorenjska or tick your equipment'}</span></span>${icon('right')}</button>
   <button class="tcard" data-act="train-tips"><span class="ic">${icon('bolt')}</span><span class="n"><b>Training tips</b><span>Best exercises per muscle, tempo, failure, real vs fake overload</span></span>${icon('right')}</button>
   <section class="card"><div class="card-h"><h2>Sets per muscle this week</h2><span class="mute" style="font-size:13px">Target ${band[0]}–${band[1]}</span></div>
@@ -683,6 +771,9 @@ Object.assign(K.actions, {
   'ex-lib': () => exerciseLibrary(),
   'ex-open': el => openExercise(el.dataset.id),
   'train-tips': () => openTips(),
+  'deload-every': el => { const d = DL(); d.every = +el.dataset.v; d.anchor = d.anchor || weekStart(K.todayKey()); K.save(); K.render(); },
+  'deload-now': () => { const d = DL(); d.force = weekStart(K.todayKey()); d.skip = null; K.save(); K.render(); K.toast(K.tt('Deload week started')); },
+  'deload-skip': () => { const d = DL(); d.skip = weekStart(K.todayKey()); d.force = null; K.save(); K.render(); },
   gym: () => openGym(),
 });
 // resume a running rest timer after reload
